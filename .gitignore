@@ -1,7 +1,0 @@
-*.vs
-*x64
-
-FileSystem/FileSystem/FileSystem.vcxproj
-FileSystem/FileSystem/FileSystem.vcxproj.filters
-FileSystem/FileSystem/FileSystem.vcxproj.user
-FileSystem/FileSystem.sln
