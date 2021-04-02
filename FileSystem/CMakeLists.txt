@@ -3,4 +3,4 @@ project(file_system)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(file_system test.cpp FileSystem/FileSystem.h FileSystem/Utils.h FileSystem/FileSystem.cpp)
+add_executable(file_system tests/test.cpp file_system/FileSystem.h file_system/utils/Utils.h file_system/FileSystem.cpp)

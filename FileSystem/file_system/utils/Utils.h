@@ -1,5 +1,4 @@
-#ifndef FILE_SYSTEM_UTILS_H
-#define FILE_SYSTEM_UTILS_H
+#pragma once
 
 namespace Utils {
 
@@ -22,5 +21,3 @@ namespace Utils {
     }
 
 }
-
-#endif //FILE_SYSTEM_UTILS_H
