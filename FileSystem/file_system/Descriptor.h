@@ -5,7 +5,7 @@
 class Descriptor {
 private:
     int file_size;
-    int* blocks_indices;
+    int *blocks_indices;
 
 public:
     Descriptor();
