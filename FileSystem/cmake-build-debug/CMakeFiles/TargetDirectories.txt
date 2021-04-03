@@ -1,0 +1,3 @@
+D:/3kurs_2/OPK/File-System-levchuk_branch/FileSystem/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+D:/3kurs_2/OPK/File-System-levchuk_branch/FileSystem/cmake-build-debug/CMakeFiles/file_system.dir
+D:/3kurs_2/OPK/File-System-levchuk_branch/FileSystem/cmake-build-debug/CMakeFiles/edit_cache.dir
