@@ -3,4 +3,5 @@ project(file_system)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(file_system tests/test.cpp file_system/FileSystem.h file_system/utils/Utils.h file_system/FileSystem.cpp)
+add_executable(file_system tests/test.cpp file_system/FileSystem.h file_system/FileSystem.cpp file_system/utils/Utils.h
+        file_system/Descriptor.h file_system/Descriptor.cpp)

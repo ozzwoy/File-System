@@ -1,21 +1,23 @@
-#pragma once
+#ifndef FILE_SYSTEM_UTILS_H
+#define FILE_SYSTEM_UTILS_H
+
 
 namespace Utils {
 
-    char* intToBytes(int number) {
+    inline char* intToBytes(int number) {
         char* bytes = new char[sizeof(int)];
 
-        for (int i = 0; i < sizeof(int); i++) {
+        for (size_t i = 0; i < sizeof(int); i++) {
             ((unsigned char*)bytes)[i] = ((unsigned char*)(&number))[i];
         }
 
         return bytes;
     }
 
-    int bytesToInt32(const char* bytes) {
+    inline int bytesToInt32(const char* bytes) {
         int number = 0;
 
-        for (int i = 0; i < 4; i++) {
+        for (size_t i = 0; i < 4; i++) {
             ((unsigned char*)(&number))[i] = ((unsigned char*)bytes)[i];
         }
 
@@ -23,3 +25,6 @@ namespace Utils {
     }
 
 }
+
+
+#endif //FILE_SYSTEM_UTILS_H
