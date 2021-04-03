@@ -15,9 +15,6 @@ DirectoryEntry::~DirectoryEntry() {
 void DirectoryEntry::parse(const char *bytes) {
     for (size_t i = 0; i < 4; i++) {
         file_name[i] = bytes[i];
-        if (bytes[i] == '\0') {
-            break;
-        }
     }
     descriptor_index = Utils::bytesToInt32(bytes + 4);
 }
@@ -27,9 +24,6 @@ char* DirectoryEntry::getFileName() const {
 
     for (size_t i = 0; i < 5; i++) {
         copy[i] = file_name[i];
-        if (file_name[i] == '\0') {
-            break;
-        }
     }
 
     return copy;
@@ -40,9 +34,9 @@ int DirectoryEntry::getDescriptorIndex() const {
 }
 
 void DirectoryEntry::setFileName(const char *new_file_name) {
-    for (size_t i = 0; i < 5; i++) {
+    for (size_t i = 0; i < 4; i++) {
         file_name[i] = new_file_name[i];
-        if (new_file_name[i] == '\0' || i == 3) {
+        if (new_file_name[i] == '\0') {
             break;
         }
     }
@@ -57,9 +51,6 @@ char* DirectoryEntry::toBytes() const {
 
     for (size_t i = 0; i < 4; i++) {
         bytes[i] = file_name[i];
-        if (file_name[i] == '\0') {
-            break;
-        }
     }
 
     char *descriptor_index_bytes = Utils::intToBytes(descriptor_index);
