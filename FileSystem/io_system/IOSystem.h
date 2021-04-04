@@ -1,21 +1,28 @@
 //
 // Created by Ярослава Левчук on 03.04.2021.
 //
-#pragma once
+
+#ifndef IO_SYSTEM_IOSYSTEM_H
+#define IO_SYSTEM_IOSYSTEM_H
+
 
 class IOSystem {
-    private:
-        const int L = 64;
-        const int B = 64;
-        char **ldisk;
+public:
+    static const int NUM_OF_BLOCKS = 64;
+    static const int BLOCK_SIZE = 64;
 
-    public:
+private:
+    char **ldisk;
 
-        IOSystem();
-        ~IOSystem();
-        void read_block (int i, char *p) const;
-        void write_block(int i, char *p);
+public:
+    IOSystem();
 
+    ~IOSystem();
+
+    void read_block(int i, char *p) const;
+
+    void write_block(int i, const char *p);
 };
 
 
+#endif //IO_SYSTEM_IOSYSTEM_H
