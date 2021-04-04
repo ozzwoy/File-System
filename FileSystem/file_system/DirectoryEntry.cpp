@@ -19,14 +19,14 @@ void DirectoryEntry::parse(const char *bytes) {
     descriptor_index = Utils::bytesToInt32(bytes + 4);
 }
 
-char* DirectoryEntry::getFileName() const {
-    char *copy = new char[5];
+bool DirectoryEntry::isFree() const {
+    return descriptor_index == -1;
+}
 
+void DirectoryEntry::copyFileName(char *buffer) const {
     for (size_t i = 0; i < 5; i++) {
-        copy[i] = file_name[i];
+        buffer[i] = file_name[i];
     }
-
-    return copy;
 }
 
 int DirectoryEntry::getDescriptorIndex() const {

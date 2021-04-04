@@ -17,6 +17,10 @@ void Descriptor::parse(const char *bytes) {
     }
 }
 
+bool Descriptor::isFree() const {
+    return file_size == -1;
+}
+
 int Descriptor::getFileSize() const {
     return file_size;
 }
