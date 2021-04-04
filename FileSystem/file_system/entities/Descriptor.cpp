@@ -1,5 +1,5 @@
 #include "Descriptor.h"
-#include "utils/Utils.h"
+#include "../utils/Utils.h"
 
 Descriptor::Descriptor() {
     file_size = -1;
@@ -37,22 +37,18 @@ void Descriptor::setBlockIndex(size_t i, int value) {
     blocks_indices[i] = value;
 }
 
-char* Descriptor::toBytes() const {
-    char *bytes = new char[16];
-
+void Descriptor::copyBytes(char *buffer) const {
     char *file_size_bytes = Utils::intToBytes(file_size);
     for (size_t i = 0; i < 4; i++) {
-        bytes[i] = file_size_bytes[i];
+        buffer[i] = file_size_bytes[i];
     }
     delete file_size_bytes;
 
     for (size_t i = 0; i < 3; i++) {
         char *index_bytes = Utils::intToBytes(blocks_indices[i]);
         for (size_t j = 0; j < 4; j++) {
-            bytes[4 * (i + 1) + j] = index_bytes[j];
+            buffer[4 * (i + 1) + j] = index_bytes[j];
         }
         delete index_bytes;
     }
-
-    return bytes;
 }
