@@ -1,7 +1,7 @@
 #pragma once
 
 #include <fstream>
-#include "../IOSystem.h"
+#include "../../IOSystem/IOSystem.h"
 
 namespace Utils {
 
@@ -31,17 +31,15 @@ namespace IOSystemUtils{
         std::ofstream out;
         out.open(path);
 
-
         if (out.is_open()) {
-            char *block[64];
+            char *block=new char[64];
             for (int i = 0; i < 64; i++) {
-                for (int j = 0; j < 64; j++) {
-                    ldisk.read_block(i, *block);
+                    ldisk.read_block(i, block);
                     out << block;
-                }
+                    out<<std::endl;
             }
-            out.close();
         }
+        out.close();
     }
 
     void init(IOSystem &ldisk,char *path){
@@ -49,17 +47,17 @@ namespace IOSystemUtils{
 
         if (in.is_open())
         {
-            char block[64];
+            char *block=new char[64];
             int i=0;
-            while (!in.eof())
+            while (i<64)
             {
                 in.get(block,64);
                 ldisk.write_block(i,block);
                 i++;
             }
-            in.close();
-        }
 
+        }
+        in.close();
     }
 
 }
