@@ -24,7 +24,7 @@ public:
 
     void setDescriptorIndex(int new_descriptor_index);
 
-    char* toBytes() const;
+    void copyBytes(char *buffer) const;
 };
 
 

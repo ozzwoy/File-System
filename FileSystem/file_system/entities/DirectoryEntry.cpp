@@ -1,6 +1,6 @@
 #include <cstring>
 #include "DirectoryEntry.h"
-#include "utils/Utils.h"
+#include "../utils/Utils.h"
 
 DirectoryEntry::DirectoryEntry() {
     file_name = new char[5];
@@ -46,18 +46,14 @@ void DirectoryEntry::setDescriptorIndex(int new_descriptor_index) {
     descriptor_index = new_descriptor_index;
 }
 
-char* DirectoryEntry::toBytes() const {
-    char *bytes = new char[8];
-
+void DirectoryEntry::copyBytes(char *buffer) const {
     for (size_t i = 0; i < 4; i++) {
-        bytes[i] = file_name[i];
+        buffer[i] = file_name[i];
     }
 
     char *descriptor_index_bytes = Utils::intToBytes(descriptor_index);
     for (size_t i = 0; i < 4; i++) {
-        bytes[4 + i] = descriptor_index_bytes[i];
+        buffer[4 + i] = descriptor_index_bytes[i];
     }
     delete[] descriptor_index_bytes;
-
-    return bytes;
 }

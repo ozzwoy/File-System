@@ -17,6 +17,7 @@ public:
 	int read(int index, void* mem_area, int count);
 	int write(int index, void* mem_area, int count);
 	int lseek(int index, int pos);
+	int directory() const;
 
 };
 

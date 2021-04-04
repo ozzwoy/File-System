@@ -24,7 +24,7 @@ public:
 
     void setBlockIndex(size_t i, int value);
 
-    char* toBytes() const;
+    void copyBytes(char *buffer) const;
 };
 
 
