@@ -15,7 +15,7 @@ namespace IOSystemUtils{
         out.open(path);
 
         if (out.is_open()) {
-            char *block=new char[64];
+            char *block = new char[64];
             for (int i = 0; i < 64; i++) {
                 ldisk.read_block(i, block);
                 out << block;
@@ -30,7 +30,7 @@ namespace IOSystemUtils{
 
         if (in.is_open())
         {
-            char *block=new char[64];
+            char *block = new char[64];
             int i=0;
             while (i<64)
             {

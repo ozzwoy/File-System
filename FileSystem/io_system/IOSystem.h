@@ -5,8 +5,8 @@
 
 class IOSystem {
     private:
-        const int L=64;
-        const int B=64;
+        const int L = 64;
+        const int B = 64;
         char **ldisk;
 
     public:

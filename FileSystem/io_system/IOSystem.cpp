@@ -8,9 +8,9 @@
 IOSystem::IOSystem(){
         ldisk = new char*[L];
         for (int j = 0; j < L; j++){
-            ldisk[j]=new char[B];
-            for(int i=0;i<B;i++)
-            ldisk[j][i]={'0'};
+            ldisk[j] = new char[B];
+            for(int i = 0; i<B; i++)
+            ldisk[j][i] = {'0'};
 
         }
 
@@ -19,13 +19,13 @@ IOSystem::IOSystem(){
 
 IOSystem::~IOSystem(){
     for (int i = 0; i < L; i++)
-            delete[]ldisk[i];
+            delete[] ldisk [i];
     delete[] ldisk;
 }
 
 void IOSystem::read_block (int i, char *p) const {
-        for(int j=0;j<64;j++)
-            p[j]= ldisk[i][j];
+        for(int j = 0; j < 64; j++)
+            p[j] = ldisk[i][j];
 
 };
 
