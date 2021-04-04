@@ -14,7 +14,9 @@ public:
 
     void parse(const char *bytes);
 
-    char* getFileName() const;
+    bool isFree() const;
+
+    void copyFileName(char *buffer) const;
 
     int getDescriptorIndex() const;
 

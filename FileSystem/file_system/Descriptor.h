@@ -14,6 +14,8 @@ public:
 
     void parse(const char *bytes);
 
+    bool isFree() const;
+
     int getFileSize() const;
 
     int getBlockIndex(size_t i) const;
