@@ -30,8 +30,6 @@ namespace Utils {
 
 }
 
-
-
 namespace IOSystemUtils{
     void save(IOSystem const &ldisk, char *path) {
         std::ofstream out;
