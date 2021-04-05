@@ -16,6 +16,8 @@ public:
     void setBitValue(size_t bit, bool value);
     void setBit(size_t bit);
     void resetBit(size_t bit);
+
+    int findZeroBit() const;
 };
 
 
