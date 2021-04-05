@@ -35,3 +35,10 @@ void BitMap::setBit(size_t bit) {
 void BitMap::resetBit(size_t bit) {
     bitmap[bit / 8] &= ~ (1 << (7 - bit % 8));
 }
+
+int BitMap::findZeroBit() const {
+    for (size_t i = 0; i < 64; i++) {
+        if (!isBitSet(i)) return i;
+    }
+    return -1;
+}
