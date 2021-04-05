@@ -1,4 +1,7 @@
+#include <cstring>
+#include <iostream>
 #include "FileSystem.h"
+#include "entities/DirectoryEntry.h"
 
 FileSystem::FileSystem() {
 
@@ -7,6 +10,19 @@ FileSystem::FileSystem() {
 FileSystem::~FileSystem() {
 
 }
+
+
+struct OFT{
+
+    struct Entry{
+        int descriptor_index=-1;
+        int current_position=-1;
+        bool modified=false;
+        char *block= nullptr;
+    };
+
+    Entry entries[4];
+};
 
 int FileSystem::createFile(const char* file_name){
 
