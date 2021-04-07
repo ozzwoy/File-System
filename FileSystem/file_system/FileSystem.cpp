@@ -101,27 +101,24 @@ int FileSystem::open(const char *file_name){
 int FileSystem::close(int index) {
     if (index < 0 || index > 3 || oft.entries[index].descriptor_index == -1)
     {
-        throw std::invalid_argument("File don't open.");
+        throw std::invalid_argument("File wasn't opened.");
     }
 
-    Descriptor file_descriptor;
-    char *descriptor_block = new char[64];
-    io_system.read_block(oft.entries[index].descriptor_index, descriptor_block);
-    file_descriptor.parse(descriptor_block);
-
     if(oft.entries[index].modified) {
-        file_descriptor.setFileSize(oft.entries[index].current_position);
-        file_descriptor.copyBytes(descriptor_block);
-        char *block_length;
-        block_length=&descriptor_block[4];
-
+        Descriptor file_descriptor;
+        char *descriptors_block = new char[64];
         int shift = oft.entries[index].descriptor_index % 4;
-        int block_num = oft.entries[index].descriptor_index / 4 + 4;
-        io_system.write_block(block_num + 4 * shift, block_length);
+        io_system.read_block(oft.entries[index].descriptor_index / 4, descriptors_block);
+        file_descriptor.parse(descriptors_block + shift * 4);
 
         int relative_block_num = oft.entries[index].current_position / 64;
         int absolute_block_num = file_descriptor.getBlockIndex(relative_block_num);
-        io_system.write_block(file_descriptor.getBlockIndex(absolute_block_num),oft.entries[index].block);
+        io_system.write_block(absolute_block_num, oft.entries[index].block);
+
+        file_descriptor.setFileSize(oft.entries[index].current_position);
+        int descriptor_num = oft.entries[index].descriptor_index % 4;
+        file_descriptor.copyBytes(descriptors_block + descriptor_num * 16);
+        io_system.write_block(oft.entries[index].descriptor_index / 4, descriptors_block);
 
     }else {
     }
