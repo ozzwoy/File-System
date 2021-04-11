@@ -17,7 +17,7 @@ namespace IOUtils{
 
         if (out.is_open()) {
             for (int i = 0; i < IOSystem::NUM_OF_BLOCKS; i++) {
-                ldisk.read_block(i, block);
+                ldisk.readBlock(i, block);
                 out << block << std::endl;
             }
         }
@@ -33,7 +33,7 @@ namespace IOUtils{
         if (in.is_open()) {
             for (int i = 0; i < IOSystem::NUM_OF_BLOCKS; i++) {
                 in.get(block, IOSystem::BLOCK_SIZE);
-                ldisk.write_block(i, block);
+                ldisk.writeBlock(i, block);
             }
         }
 

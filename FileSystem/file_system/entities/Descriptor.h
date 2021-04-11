@@ -18,11 +18,11 @@ public:
 
     int getFileSize() const;
 
-    int getBlockIndex(size_t i) const;
+    int getBlockIndex(int i) const;
 
     void setFileSize(int new_file_size);
 
-    void setBlockIndex(size_t i, int value);
+    void setBlockIndex(int i, int value);
 
     void copyBytes(char *buffer) const;
 };
