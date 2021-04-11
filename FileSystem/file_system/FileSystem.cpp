@@ -199,7 +199,7 @@ void FileSystem::lseek(int index, int pos) {
         throw std::exception(message);
     }
 
-
+    loadNewBlockToOFT(index, pos / 64);
 }
 
 int FileSystem::directory() const {
@@ -229,27 +229,26 @@ Descriptor FileSystem::getDescriptor(int oft_entry_index) const {
 
 bool FileSystem::loadNewBlockToOFT(int oft_entry_index, int relative_block_index) {
     OFT::Entry entry = oft.entries[oft_entry_index];
-
-    if (entry.current_position == -1) {
-        return false;
-    }
+    int current_relative_block_index = entry.current_position / 64;
 
     if (oft_entry_index == 0) {
-        if (relative_block_index != 0 && entry.modified) {
-            io_system.writeBlock(relative_block_index, entry.block);
+        if (entry.modified) {
+            io_system.writeBlock(current_relative_block_index + 1, entry.block);
         }
-        io_system.readBlock(relative_block_index + 1, oft.entries[oft_entry_index].block);
+        io_system.readBlock(relative_block_index, oft.entries[oft_entry_index].block);
+        entry.current_position = 64 * relative_block_index;
         entry.modified = false;
         return true;
     }
 
     Descriptor descriptor = getDescriptor(oft_entry_index);
-    if (relative_block_index != 0 && entry.modified) {
-        int block_index = descriptor.getBlockIndex(relative_block_index - 1);
+    if (entry.modified) {
+        int block_index = descriptor.getBlockIndex(current_relative_block_index);
         io_system.writeBlock(block_index, entry.block);
     }
     int block_index = descriptor.getBlockIndex(relative_block_index);
     io_system.readBlock(block_index, entry.block);
+    entry.current_position = 64 * relative_block_index;
     entry.modified = false;
 
     return true;
