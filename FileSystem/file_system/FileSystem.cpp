@@ -1,5 +1,6 @@
-#include <exception>
+#include <stdexcept>
 #include <iostream>
+#include <cstring>
 #include "FileSystem.h"
 #include "entities/DirectoryEntry.h"
 #include "../io_system/IOSystem.h"
@@ -67,7 +68,7 @@ int FileSystem::open(const char *file_name) {
     if (descriptor_index == -1) {
         char message[100];
         std::sprintf(message, "File with name \"%s\" doesn't exist.", file_name);
-        throw std::exception(message);
+        throw std::invalid_argument(message);
     }
 
     int oft_index = 1;
@@ -76,7 +77,7 @@ int FileSystem::open(const char *file_name) {
     }
 
     if (oft_index == 4) {
-        throw std::exception("Can't open one more file.");
+        throw std::length_error("Can't open one more file.");
     } else {
         oft.entries[oft_index].descriptor_index = descriptor_index;
         oft.entries[oft_index].current_position = 0;
@@ -120,7 +121,7 @@ int FileSystem::read(int index, char* mem_area, int count) {
     OFT::Entry entry = oft.entries[index];
 
     if (entry.current_position == -1 || entry.current_position + count > 3 * 64) {
-        throw std::exception("File is out of bounds. Maximal size: 192 bytes.");
+        throw std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
     }
 
     int shift = entry.current_position % 64;
@@ -156,7 +157,7 @@ int FileSystem::write(int index, const char* mem_area, int count) {
     OFT::Entry entry = oft.entries[index];
 
     if (entry.current_position == -1 || entry.current_position + count > 3 * 64) {
-        throw std::exception("File is out of bounds. Maximal size: 192 bytes.");
+        throw new std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
     }
 
     int shift = entry.current_position % 64;
@@ -196,7 +197,7 @@ void FileSystem::lseek(int index, int pos) {
     if (pos > descriptor.getFileSize()) {
         char message[100];
         std::sprintf(message, "File is out of bounds. Current size: %d bytes.", descriptor.getFileSize());
-        throw std::exception(message);
+        throw std::out_of_range(message);
     }
 
     loadNewBlockToOFT(index, pos / 64);
@@ -209,9 +210,9 @@ int FileSystem::directory() const {
 
 void FileSystem::checkOFTIndex(int index) const {
     if (index < 1 || index > 3) {
-        throw std::exception("Invalid index. Should be an integer from 1 to 3.");
+        throw new std::out_of_range("Invalid index. Should be an integer from 1 to 3.");
     } else if (oft.entries[index].descriptor_index == -1) {
-        throw std::exception("File wasn't opened.");
+        throw  std::invalid_argument("File wasn't opened.");
     }
 }
 
