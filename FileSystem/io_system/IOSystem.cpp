@@ -18,13 +18,13 @@ IOSystem::~IOSystem() {
     delete[] ldisk;
 }
 
-void IOSystem::read_block (int i, char *p) const {
+void IOSystem::readBlock (int i, char *p) const {
     for(int j = 0; j < BLOCK_SIZE; j++) {
         p[j] = ldisk[i][j];
     }
 };
 
-void IOSystem::write_block(int i, const char *p) {
+void IOSystem::writeBlock(int i, const char *p) {
     for (int j = 0; j < BLOCK_SIZE; j++) {
         ldisk[i][j] = p[j];
     }

@@ -19,29 +19,25 @@ struct OFT{
 
 class FileSystem {
 private:
-	
-	//OFT oft;
     OFT oft;
     IOSystem io_system;
     BitMap bitMap;
-    DirectoryEntry directory_entry;
-
 
 public:
-
-	FileSystem(IOSystem &io_system);
+	explicit FileSystem(IOSystem &io_system);
 	~FileSystem();
-
 
 	int createFile(const char* file_name);
 	int destroyFile(const char* file_name);
 	int open(const char* file_name);
-	int close(int index);
-	int read(int index, void* mem_area, int count);
-	int write(int index, void* mem_area, int count);
-	int lseek(int index, int pos);
+	void close(int index);
+	int read(int index, char* mem_area, int count);
+	int write(int index, const char* mem_area, int count);
+	void lseek(int index, int pos);
 	int directory() const;
 
+private:
+    void checkOFTIndex(int index) const;
+    Descriptor getDescriptor(int oft_entry_index) const;
+    bool loadNewBlockToOFT(int oft_entry_index, int relative_block_index);
 };
-
-

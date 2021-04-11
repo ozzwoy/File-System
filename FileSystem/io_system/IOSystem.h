@@ -19,9 +19,9 @@ public:
 
     ~IOSystem();
 
-    void read_block(int i, char *p) const;
+    void readBlock(int i, char *p) const;
 
-    void write_block(int i, const char *p);
+    void writeBlock(int i, const char *p);
 };
 
 
