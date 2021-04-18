@@ -27,8 +27,8 @@ public:
 	explicit FileSystem(IOSystem &io_system);
 	~FileSystem();
 
-	int createFile(const char* file_name);
-	int destroyFile(const char* file_name);
+	void createFile(const char* file_name);
+	void destroyFile(const char* file_name);
 	int open(const char* file_name);
 	void close(int index);
 	int read(int index, char* mem_area, int count);

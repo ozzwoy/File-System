@@ -30,12 +30,12 @@ FileSystem::~FileSystem() {
     }
 }
 
-int FileSystem::createFile(const char* file_name) {
+void FileSystem::createFile(const char* file_name) {
     const int descriptor_size = 16;
 
     //if file name is incorrect
     if (strlen(file_name) > 4 ){
-        throw std::length_error("File name must be less than 5 characters.");
+        throw std::length_error("File name must contain up to 4 characters.");
         //return ERROR;
     }
 
@@ -57,70 +57,61 @@ int FileSystem::createFile(const char* file_name) {
     }
 
     //if there is no free file descriptor
-    if (free_descriptor_index == -1){
-        throw std::length_error("There is no free file descriptor.");
-        //return ERROR;
-    }
-
-    //find a free directory entry
-    int free_directory_entry_index = -1;
-    int free_block_index = -1;
-    DirectoryEntry directory_entry;
-    char *temp_entry_block = new char[64];
-    char *entry_block = new char[64];
-
-    for (int i = 0; i < 4; i++) {
-        io_system.readBlock(i, temp_entry_block);
-        for (int j = 0; j < 8; j++) {
-            DirectoryEntry temp_directory_entry;
-            temp_directory_entry.parse(temp_entry_block + j * 8);
-
-            if (free_directory_entry_index == -1 && temp_directory_entry.isFree()) {
-                io_system.readBlock(i, entry_block);
-                free_directory_entry_index = j;
-                free_block_index = i;
-                directory_entry.parse(temp_entry_block + j * 8);
-                directory_entry.setFileName(file_name);
-                directory_entry.setDescriptorIndex(free_descriptor_index);
-            } else {
-                char *file_name2 = new char[5];
-                temp_directory_entry.copyFileName(file_name2);
-                if (std::strcmp(file_name2, file_name) == 0) {
-                    char message[100];
-                    std::sprintf(message, "File with name \"%s\" already exist.", file_name);
-                    throw std::invalid_argument(message);
-                    //return ERROR;
-                }
-                delete[] file_name2;
-            }
-        }
-    }
-    delete[] temp_entry_block;
-
-    if (free_directory_entry_index == -1) {
-        throw std::length_error("There is no free directory entry.");
+    if (free_descriptor_index == -1) {
+        throw std::length_error("Cannot create more than 24 files.");
         //return ERROR;
     }
 
     //fill descriptor
     descriptor.copyBytes(descriptor_block_bytes + (free_descriptor_index % 4) * descriptor_size);
-    io_system.writeBlock((int) free_descriptor_index / 4 + 4, descriptor_block_bytes);
+    io_system.writeBlock(free_descriptor_index / 4 + 4, descriptor_block_bytes);
     delete[] descriptor_block_bytes;
+
+    //find a free directory entry
+    int free_directory_entry_index = -1;
+    DirectoryEntry directory_entry;
+    char *entry_block = new char[64];
+
+    for (int i = 1; i < 4; i++) {
+        io_system.readBlock(i, entry_block);
+        for (int j = 0; j < 8; j++) {
+            directory_entry.parse(entry_block + j * 8);
+
+            if (free_directory_entry_index == -1 && directory_entry.isFree()) {
+                io_system.readBlock(i, entry_block);
+                free_directory_entry_index = j;
+                directory_entry.setFileName(file_name);
+                directory_entry.setDescriptorIndex(free_descriptor_index);
+            } else {
+                char file_name2[5];
+                directory_entry.copyFileName(file_name2);
+                if (std::strcmp(file_name2, file_name) == 0) {
+                    char message[100];
+                    std::sprintf(message, "File with name \"%s\" already exists.", file_name);
+                    throw std::invalid_argument(message);
+                    //return ERROR;
+                }
+            }
+        }
+    }
+
+//    if (free_directory_entry_index == -1) {
+//        throw std::length_error("Cannot create more than 24 files.");
+//        //return ERROR;
+//    }
 
     //fill directory entry
     directory_entry.copyBytes(entry_block + free_directory_entry_index * 8);
-    io_system.writeBlock(free_block_index, entry_block);
+    io_system.writeBlock(free_directory_entry_index / 8 + 1, entry_block);
     delete[] entry_block;
-
-    return 0;
 }
 
-int FileSystem::destroyFile(const char* file_name) {
+void FileSystem::destroyFile(const char* file_name) {
     const int descriptor_size = 16;
 
     //if file name is incorrect
     if (strlen(file_name) > 4 ){
-        throw std::length_error("File name must be less than 5 characters.");
+        throw std::length_error("File name must contain up to 4 characters.");
         //return ERROR;
     }
 
@@ -137,18 +128,17 @@ int FileSystem::destroyFile(const char* file_name) {
             directory_entry.parse(temp_entry_block + j * 8);
 
             if (!directory_entry.isFree()) {
-                char *file_name2 = new char[5];
+                char file_name2[5];
                 directory_entry.copyFileName(file_name2);
                 if (std::strcmp(file_name2, file_name) == 0) {
                     found = true;
                     descriptor_index = directory_entry.getDescriptorIndex();
-                    //Remove the directory entry
-                    directory_entry = DirectoryEntry();
-                    directory_entry.copyBytes(temp_entry_block + j * 8);
+                    //remove the directory entry
+                    DirectoryEntry empty_entry;
+                    empty_entry.copyBytes(temp_entry_block + j * 8);
                     io_system.writeBlock(i, temp_entry_block);
                     break;
                 }
-                delete[] file_name2;
             }
         }
     }
@@ -164,21 +154,26 @@ int FileSystem::destroyFile(const char* file_name) {
 
     Descriptor descriptor;
     char *temp_descriptor_block = new char[descriptor_size];
-    io_system.readBlock((int) descriptor_index / 4, temp_descriptor_block);
+    io_system.readBlock(descriptor_index / 4, temp_descriptor_block);
     descriptor.parse(temp_descriptor_block + (descriptor_index % 4) * descriptor_size);
 
-    //Update the bitmap to reflect the freed blocks
-    for (int i = 0; i < descriptor.getFileSize()/64; i++) {
+    //free the file descriptor
+    Descriptor empty_descriptor;
+    empty_descriptor.copyBytes(temp_descriptor_block + (descriptor_index % 4) * descriptor_size);
+    io_system.writeBlock(descriptor_index / 4 + 4, temp_descriptor_block);
+    delete[] temp_descriptor_block;
+
+    //update the bitmap to reflect the freed blocks
+    for (int i = 0; i < descriptor.getFileSize() / 64; i++) {
         bitMap.resetBit(descriptor.getBlockIndex(i));
     }
 
-    //Free the file descriptor
-    descriptor = Descriptor();
-    descriptor.copyBytes(temp_descriptor_block + (descriptor_index % 4) * descriptor_size);
-    io_system.writeBlock((int) descriptor_index / 4 + 4, temp_descriptor_block);
-    delete[] temp_descriptor_block;
-
-    return 0;
+    //save changes to disk (наскрізне кешування?)
+    char* bitmap_block = new char[64];
+    io_system.readBlock(0, bitmap_block);
+    bitMap.copyBytes(bitmap_block);
+    io_system.writeBlock(0, bitmap_block);
+    delete[] bitmap_block;
 }
 
 int FileSystem::open(const char *file_name) {
@@ -194,14 +189,13 @@ int FileSystem::open(const char *file_name) {
     for (int i = 1; i < 4 && !found; i++) {
         for (int j=0; j < 8; j++) {
             directory_entry.parse(oft.entries[0].block + j * 8);
-            char *file_name2 = new char[5];
+            char file_name2[5];
             directory_entry.copyFileName(file_name2);
             if (std::strcmp(file_name2, file_name) == 0) {
                 found = true;
                 descriptor_index = directory_entry.getDescriptorIndex();
                 break;
             }
-            delete[] file_name2;
         }
         if (i < 3 && !found) {
             io_system.readBlock(i, oft.entries[0].block);
@@ -301,7 +295,7 @@ int FileSystem::write(int index, const char* mem_area, int count) {
     OFT::Entry entry = oft.entries[index];
 
     if (entry.current_position == -1 || entry.current_position + count > 3 * 64) {
-        throw new std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
+        throw std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
     }
 
     int shift = entry.current_position % 64;
@@ -373,7 +367,7 @@ int FileSystem::directory() const {
 
 void FileSystem::checkOFTIndex(int index) const {
     if (index < 1 || index > 3) {
-        throw new std::out_of_range("Invalid index. Should be an integer from 1 to 3.");
+        throw std::out_of_range("Invalid index. Should be an integer from 1 to 3.");
     } else if (oft.entries[index].descriptor_index == -1) {
         throw  std::invalid_argument("File wasn't opened.");
     }
