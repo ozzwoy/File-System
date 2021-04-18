@@ -1,3 +1,4 @@
+#include "FileSystem.h"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -30,18 +31,158 @@ FileSystem::~FileSystem() {
 }
 
 int FileSystem::createFile(const char* file_name) {
+    const int descriptor_size = 16;
+
+    //if file name is incorrect
+    if (strlen(file_name) > 4 ){
+        throw std::length_error("File name must be less than 5 characters.");
+        //return ERROR;
+    }
+
+    //find a free file descriptor
+    int free_descriptor_index = -1;
+    char *descriptor_block_bytes = new char[descriptor_size];
+    Descriptor descriptor;
+
+    for (int block_index = 4; block_index < 10 && free_descriptor_index == -1; block_index++) {
+        io_system.readBlock(block_index, descriptor_block_bytes);
+        for (int i = 0; i < 4; i++) {
+            descriptor.parse(descriptor_block_bytes + i * descriptor_size);
+            if (descriptor.isFree()){
+                free_descriptor_index = block_index * 4 + i;
+                descriptor.setFileSize(0);
+                break;
+            }
+        }
+    }
+
+    //if there is no free file descriptor
+    if (free_descriptor_index == -1){
+        throw std::length_error("There is no free file descriptor.");
+        //return ERROR;
+    }
+
+    //find a free directory entry
+    int free_directory_entry_index = -1;
+    int free_block_index = -1;
+    DirectoryEntry directory_entry;
+    char *temp_entry_block = new char[64];
+    char *entry_block = new char[64];
+
+    for (int i = 0; i < 4; i++) {
+        io_system.readBlock(i, temp_entry_block);
+        for (int j = 0; j < 8; j++) {
+            DirectoryEntry temp_directory_entry;
+            temp_directory_entry.parse(temp_entry_block + j * 8);
+
+            if (free_directory_entry_index == -1 && temp_directory_entry.isFree()) {
+                io_system.readBlock(i, entry_block);
+                free_directory_entry_index = j;
+                free_block_index = i;
+                directory_entry.parse(temp_entry_block + j * 8);
+                directory_entry.setFileName(file_name);
+                directory_entry.setDescriptorIndex(free_descriptor_index);
+            } else {
+                char *file_name2 = new char[5];
+                temp_directory_entry.copyFileName(file_name2);
+                if (std::strcmp(file_name2, file_name) == 0) {
+                    char message[100];
+                    std::sprintf(message, "File with name \"%s\" already exist.", file_name);
+                    throw std::invalid_argument(message);
+                    //return ERROR;
+                }
+                delete[] file_name2;
+            }
+        }
+    }
+    delete[] temp_entry_block;
+
+    if (free_directory_entry_index == -1) {
+        throw std::length_error("There is no free directory entry.");
+        //return ERROR;
+    }
+
+    //fill descriptor
+    descriptor.copyBytes(descriptor_block_bytes + (free_descriptor_index % 4) * descriptor_size);
+    io_system.writeBlock((int) free_descriptor_index / 4 + 4, descriptor_block_bytes);
+    delete[] descriptor_block_bytes;
+
+    //fill directory entry
+    directory_entry.copyBytes(entry_block + free_directory_entry_index * 8);
+    io_system.writeBlock(free_block_index, entry_block);
+    delete[] entry_block;
 
     return 0;
 }
 
 int FileSystem::destroyFile(const char* file_name) {
+    const int descriptor_size = 16;
+
+    //if file name is incorrect
+    if (strlen(file_name) > 4 ){
+        throw std::length_error("File name must be less than 5 characters.");
+        //return ERROR;
+    }
+
+    //find the file descriptor by searching the directory
+    //find a directory entry
+    bool found = false;
+    char *temp_entry_block = new char[64];
+    int descriptor_index = -1;
+
+    for (int i = 0; i < 4 && !found; i++) {
+        io_system.readBlock(i, temp_entry_block);
+        for (int j = 0; j < 8; j++) {
+            DirectoryEntry directory_entry;
+            directory_entry.parse(temp_entry_block + j * 8);
+
+            if (!directory_entry.isFree()) {
+                char *file_name2 = new char[5];
+                directory_entry.copyFileName(file_name2);
+                if (std::strcmp(file_name2, file_name) == 0) {
+                    found = true;
+                    descriptor_index = directory_entry.getDescriptorIndex();
+                    //Remove the directory entry
+                    directory_entry = DirectoryEntry();
+                    directory_entry.copyBytes(temp_entry_block + j * 8);
+                    io_system.writeBlock(i, temp_entry_block);
+                    break;
+                }
+                delete[] file_name2;
+            }
+        }
+    }
+    delete[] temp_entry_block;
+
+    //if file was not found
+    if (!found) {
+        char message[100];
+        std::sprintf(message, "File with name \"%s\" does not exist.", file_name);
+        throw std::invalid_argument(message);
+        //return ERROR;
+    }
+
+    Descriptor descriptor;
+    char *temp_descriptor_block = new char[descriptor_size];
+    io_system.readBlock((int) descriptor_index / 4, temp_descriptor_block);
+    descriptor.parse(temp_descriptor_block + (descriptor_index % 4) * descriptor_size);
+
+    //Update the bitmap to reflect the freed blocks
+    for (int i = 0; i < descriptor.getFileSize()/64; i++) {
+        bitMap.resetBit(descriptor.getBlockIndex(i));
+    }
+
+    //Free the file descriptor
+    descriptor = Descriptor();
+    descriptor.copyBytes(temp_descriptor_block + (descriptor_index % 4) * descriptor_size);
+    io_system.writeBlock((int) descriptor_index / 4 + 4, temp_descriptor_block);
+    delete[] temp_descriptor_block;
 
     return 0;
 }
 
 int FileSystem::open(const char *file_name) {
     int descriptor_index = -1;
-    char *file_name2 = new char[5];
 
     if (oft.entries[0].current_position / 64 > 0) {
         io_system.readBlock(1, oft.entries[0].block);
@@ -53,17 +194,20 @@ int FileSystem::open(const char *file_name) {
     for (int i = 1; i < 4 && !found; i++) {
         for (int j=0; j < 8; j++) {
             directory_entry.parse(oft.entries[0].block + j * 8);
+            char *file_name2 = new char[5];
             directory_entry.copyFileName(file_name2);
             if (std::strcmp(file_name2, file_name) == 0) {
                 found = true;
                 descriptor_index = directory_entry.getDescriptorIndex();
                 break;
             }
+            delete[] file_name2;
         }
         if (i < 3 && !found) {
             io_system.readBlock(i, oft.entries[0].block);
         }
     }
+
 
     if (descriptor_index == -1) {
         char message[100];
@@ -189,7 +333,6 @@ int FileSystem::write(int index, const char* mem_area, int count) {
     return entry.current_position;
 }
 
-
 void FileSystem::lseek(int index, int pos) {
     checkOFTIndex(index);
     Descriptor descriptor = getDescriptor(index);
@@ -205,6 +348,26 @@ void FileSystem::lseek(int index, int pos) {
 
 int FileSystem::directory() const {
 
+    char *block = new char[64];
+
+    for (int i = 0; i < 4; i++) {
+        io_system.readBlock(i, block);
+        for (int j = 0; j < 8; j++) {
+            DirectoryEntry temp_directory_entry;
+            temp_directory_entry.parse(block + j * 8);
+
+            if (!temp_directory_entry.isFree()) {
+                char *file_name = new char[5];
+                temp_directory_entry.copyFileName(file_name);
+                int descriptor_index = temp_directory_entry.getDescriptorIndex();
+                Descriptor descriptor = getDescriptor(descriptor_index);
+                std::cout << file_name << " " << descriptor.getFileSize() << std::endl;
+                delete[] file_name;
+            }
+        }
+    }
+
+    delete[] block;
     return 0;
 }
 
