@@ -39,7 +39,5 @@ public:
 private:
     void checkOFTIndex(int index) const;
     Descriptor getDescriptor(int oft_entry_index) const;
-    void setDescriptor(int oft_entry_index, Descriptor descriptor);
     bool loadNewBlockToOFT(int oft_entry_index, int relative_block_index);
-
 };
