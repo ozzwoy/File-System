@@ -4,7 +4,6 @@
 #include <cstring>
 #include "../file_system/entities/BitMap.h"
 #include "../file_system/FileSystem.h"
-#include "../io_system/IOSystem.h"
 
 TEST_CASE("File System"){
 
