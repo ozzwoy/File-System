@@ -341,7 +341,6 @@ void FileSystem::lseek(int index, int pos) {
 }
 
 int FileSystem::directory() const {
-
     char *block = new char[64];
 
     for (int i = 0; i < 4; i++) {
@@ -367,9 +366,13 @@ int FileSystem::directory() const {
 
 void FileSystem::checkOFTIndex(int index) const {
     if (index < 1 || index > 3) {
-        throw std::out_of_range("Invalid index. Should be an integer from 1 to 3.");
+        char message[100];
+        std::sprintf(message, "Invalid index. File index must be an integer from 1 to 3. Provided: %d.", index);
+        throw std::out_of_range(message);
     } else if (oft.entries[index].descriptor_index == -1) {
-        throw  std::invalid_argument("File wasn't opened.");
+        char message[100];
+        std::sprintf(message, "File with index %d wasn't opened.", index);
+        throw  std::invalid_argument(message);
     }
 }
 
