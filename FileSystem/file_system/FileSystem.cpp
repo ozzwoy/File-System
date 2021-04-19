@@ -338,7 +338,9 @@ void FileSystem::lseek(int index, int pos) {
         throw std::out_of_range(message);
     }
 
-    replaceBlockAtOFT(index, pos / 64);
+    if (int(pos / 64) != int(oft.entries[index].current_position / 64)) {
+        replaceBlockAtOFT(index, pos / 64);
+    }
 }
 
 void FileSystem::directory() const {
