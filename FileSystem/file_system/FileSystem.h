@@ -34,10 +34,10 @@ public:
 	int read(int index, char* mem_area, int count);
 	int write(int index, const char* mem_area, int count);
 	void lseek(int index, int pos);
-	int directory() const;
+	void directory() const;
 
 private:
     void checkOFTIndex(int index) const;
     Descriptor getDescriptor(int oft_entry_index) const;
-    bool loadNewBlockToOFT(int oft_entry_index, int relative_block_index);
+    bool replaceBlockAtOFT(int oft_entry_index, int new_block_oft_index);
 };

@@ -41,13 +41,13 @@ void FileSystem::createFile(const char* file_name) {
 
     //find a free file descriptor
     int free_descriptor_index = -1;
-    char *descriptor_block_bytes = new char[descriptor_size];
+    char *descriptor_block = new char[descriptor_size];
     Descriptor descriptor;
 
     for (int block_index = 4; block_index < 10 && free_descriptor_index == -1; block_index++) {
-        io_system.readBlock(block_index, descriptor_block_bytes);
+        io_system.readBlock(block_index, descriptor_block);
         for (int i = 0; i < 4; i++) {
-            descriptor.parse(descriptor_block_bytes + i * descriptor_size);
+            descriptor.parse(descriptor_block + i * descriptor_size);
             if (descriptor.isFree()){
                 free_descriptor_index = block_index * 4 + i;
                 descriptor.setFileSize(0);
@@ -61,11 +61,6 @@ void FileSystem::createFile(const char* file_name) {
         throw std::length_error("Cannot create more than 24 files.");
         //return ERROR;
     }
-
-    //fill descriptor
-    descriptor.copyBytes(descriptor_block_bytes + (free_descriptor_index % 4) * descriptor_size);
-    io_system.writeBlock(free_descriptor_index / 4 + 4, descriptor_block_bytes);
-    delete[] descriptor_block_bytes;
 
     //find a free directory entry
     int free_directory_entry_index = -1;
@@ -95,10 +90,15 @@ void FileSystem::createFile(const char* file_name) {
         }
     }
 
-//    if (free_directory_entry_index == -1) {
-//        throw std::length_error("Cannot create more than 24 files.");
-//        //return ERROR;
-//    }
+    if (free_directory_entry_index == -1) {
+        throw std::length_error("Cannot create more than 24 files.");
+        //return ERROR;
+    }
+
+    //fill descriptor
+    descriptor.copyBytes(descriptor_block + (free_descriptor_index % 4) * descriptor_size);
+    io_system.writeBlock(free_descriptor_index / 4 + 4, descriptor_block);
+    delete[] descriptor_block;
 
     //fill directory entry
     directory_entry.copyBytes(entry_block + free_directory_entry_index * 8);
@@ -220,7 +220,7 @@ int FileSystem::open(const char *file_name) {
         oft.entries[oft_index].descriptor_index = descriptor_index;
         oft.entries[oft_index].current_position = 0;
         oft.entries[oft_index].block = new char[64];
-        loadNewBlockToOFT(oft_index, 0);
+        replaceBlockAtOFT(oft_index, 0);
     }
 
     return oft_index;
@@ -240,7 +240,9 @@ void FileSystem::close(int index) {
         int absolute_block_num = descriptor.getBlockIndex(relative_block_num);
         io_system.writeBlock(absolute_block_num, oft.entries[index].block);
 
-        descriptor.setFileSize(oft.entries[index].current_position);
+        if (oft.entries[index].current_position > descriptor.getFileSize()) {
+            descriptor.setFileSize(oft.entries[index].current_position);
+        }
         int descriptor_num = oft.entries[index].descriptor_index % 4;
         descriptor.copyBytes(descriptors_block + descriptor_num * 16);
         io_system.writeBlock(oft.entries[index].descriptor_index / 4, descriptors_block);
@@ -257,36 +259,42 @@ int FileSystem::read(int index, char* mem_area, int count) {
     checkOFTIndex(index);
 
     OFT::Entry entry = oft.entries[index];
+    Descriptor descriptor = getDescriptor(entry.descriptor_index);
 
-    if (entry.current_position == -1 || entry.current_position + count > 3 * 64) {
-        throw std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
+    if (entry.current_position == -1 || entry.current_position + count > descriptor.getFileSize()) {
+        char message[100];
+
+        std::sprintf(message, "Operation unsuccessful: file is out of bounds. File size: %d bytes, current position: ",
+                     descriptor.getFileSize());
+        if (entry.current_position == -1) {
+            std::sprintf(message, "EOF");
+        } else {
+            std::sprintf(message, "%d", entry.current_position);
+        }
+        std::sprintf(message, ", count: %d.", count);
+
+        throw std::out_of_range(message);
     }
 
     int shift = entry.current_position % 64;
     int i = 0;
 
     while (true) {
+        if (shift == 0) {
+            replaceBlockAtOFT(index, entry.current_position / 64);
+        }
         for (; i + shift < 64 && i < count; i++) {
             mem_area[i] = entry.block[i + shift];
             entry.current_position++;
         }
-
-        if (entry.current_position == 64 * 3) {
-            entry.current_position = -1;
-            break;
-        }
-        if (i + shift == 64) {
-            loadNewBlockToOFT(index, entry.current_position / 64);
-        }
         if (i == count) {
             break;
         }
-
         i = 0;
         shift = 0;
     }
 
-    return entry.current_position;
+    return (entry.current_position == 64 * 3) ? -1 : entry.current_position;
 }
 
 int FileSystem::write(int index, const char* mem_area, int count) {
@@ -295,36 +303,28 @@ int FileSystem::write(int index, const char* mem_area, int count) {
     OFT::Entry entry = oft.entries[index];
 
     if (entry.current_position == -1 || entry.current_position + count > 3 * 64) {
-        throw std::out_of_range("File is out of bounds. Maximal size: 192 bytes.");
+        throw std::out_of_range("Operation unsuccessful: file is out of bounds. Maximal size: 192 bytes.");
     }
 
     int shift = entry.current_position % 64;
     int i = 0;
 
     while (true) {
+        if (shift == 0) {
+            replaceBlockAtOFT(index, entry.current_position / 64);
+        }
         for (; i + shift < 64 && i < count; i++) {
             entry.block[i + shift] = mem_area[i];
             entry.current_position++;
         }
-
-        if (entry.current_position == 64 * 3) {
-            entry.current_position = -1;
-            break;
-        }
-
-        if (i + shift == 64) {
-            loadNewBlockToOFT(index, entry.current_position / 64);
-        }
-
         if (i == count) {
             break;
         }
-
         i = 0;
         shift = 0;
     }
 
-    return entry.current_position;
+    return (entry.current_position == 64 * 3) ? -1 : entry.current_position;
 }
 
 void FileSystem::lseek(int index, int pos) {
@@ -333,14 +333,15 @@ void FileSystem::lseek(int index, int pos) {
 
     if (pos > descriptor.getFileSize()) {
         char message[100];
-        std::sprintf(message, "File is out of bounds. Current size: %d bytes.", descriptor.getFileSize());
+        std::sprintf(message, "Operation unsuccessful: file is out of bounds. File size: %d bytes.",
+                     descriptor.getFileSize());
         throw std::out_of_range(message);
     }
 
-    loadNewBlockToOFT(index, pos / 64);
+    replaceBlockAtOFT(index, pos / 64);
 }
 
-int FileSystem::directory() const {
+void FileSystem::directory() const {
     char *block = new char[64];
 
     for (int i = 0; i < 4; i++) {
@@ -350,18 +351,16 @@ int FileSystem::directory() const {
             temp_directory_entry.parse(block + j * 8);
 
             if (!temp_directory_entry.isFree()) {
-                char *file_name = new char[5];
+                char file_name[5];
                 temp_directory_entry.copyFileName(file_name);
                 int descriptor_index = temp_directory_entry.getDescriptorIndex();
                 Descriptor descriptor = getDescriptor(descriptor_index);
                 std::cout << file_name << " " << descriptor.getFileSize() << std::endl;
-                delete[] file_name;
             }
         }
     }
 
     delete[] block;
-    return 0;
 }
 
 void FileSystem::checkOFTIndex(int index) const {
@@ -388,28 +387,52 @@ Descriptor FileSystem::getDescriptor(int oft_entry_index) const {
     return descriptor;
 }
 
-bool FileSystem::loadNewBlockToOFT(int oft_entry_index, int relative_block_index) {
+bool FileSystem::replaceBlockAtOFT(int oft_entry_index, int new_block_oft_index) {
     OFT::Entry entry = oft.entries[oft_entry_index];
-    int current_relative_block_index = entry.current_position / 64;
+    int current_block_index = (entry.current_position - 1) / 64;
 
     if (oft_entry_index == 0) {
         if (entry.modified) {
-            io_system.writeBlock(current_relative_block_index + 1, entry.block);
+            io_system.writeBlock(current_block_index + 1, entry.block);
         }
-        io_system.readBlock(relative_block_index, oft.entries[oft_entry_index].block);
-        entry.current_position = 64 * relative_block_index;
+        io_system.readBlock(new_block_oft_index, oft.entries[oft_entry_index].block);
+        entry.current_position = 64 * new_block_oft_index;
         entry.modified = false;
         return true;
     }
 
-    Descriptor descriptor = getDescriptor(oft_entry_index);
+    char *descriptor_block = new char[64];
+    Descriptor descriptor;
+    int descriptor_block_index = entry.descriptor_index / 4 + 4;
+    int shift = (entry.descriptor_index % 4) * 16;
+    io_system.readBlock(descriptor_block_index, descriptor_block);
+    descriptor.parse(descriptor_block + shift);
+
     if (entry.modified) {
-        int block_index = descriptor.getBlockIndex(current_relative_block_index);
+        int block_index = descriptor.getBlockIndex(current_block_index);
         io_system.writeBlock(block_index, entry.block);
+
+        if (descriptor.getFileSize() < entry.current_position) {
+            descriptor.setFileSize(entry.current_position);
+        }
+        descriptor.copyBytes(descriptor_block + shift);
+        io_system.writeBlock(descriptor_block_index, descriptor_block);
     }
-    int block_index = descriptor.getBlockIndex(relative_block_index);
-    io_system.readBlock(block_index, entry.block);
-    entry.current_position = 64 * relative_block_index;
+
+    delete[] descriptor_block;
+
+    int absolute_block_index = descriptor.getBlockIndex(new_block_oft_index);
+    if (absolute_block_index == -1) {
+        absolute_block_index = bitMap.findZeroBit();
+        if (absolute_block_index == -1) {
+            throw std::length_error("Cannot allocate memory for file. Disk is full.");
+        }
+        bitMap.setBit(absolute_block_index);
+        descriptor.setBlockIndex(new_block_oft_index, absolute_block_index);
+    }
+
+    io_system.readBlock(absolute_block_index, entry.block);
+    entry.current_position = 64 * absolute_block_index;
     entry.modified = false;
 
     return true;
