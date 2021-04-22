@@ -10,6 +10,7 @@
 FileSystem::FileSystem(IOSystem &io_system) {
     this->io_system = io_system;
 
+
     char *bitmap_block = new char[64];
     io_system.readBlock(0, bitmap_block);
     bitMap.parse(bitmap_block);
@@ -23,23 +24,23 @@ FileSystem::FileSystem(IOSystem &io_system) {
     char *directory_block = new char[64];
     DirectoryEntry directory_entry = DirectoryEntry();
     for(int directoryIndexInBlock = 0; directoryIndexInBlock < 8; directoryIndexInBlock++)
-    directory_entry.copyBytes(directory_block + directoryIndexInBlock * 8);
+        directory_entry.copyBytes(directory_block + directoryIndexInBlock * 8);
     for(int directoryBlocksIndex = 1; directoryBlocksIndex < 4; directoryBlocksIndex++)
-    io_system.writeBlock(directoryBlocksIndex, directory_block);
+        io_system.writeBlock(directoryBlocksIndex, directory_block);
     delete[] directory_block;
     delete[] directory_entry;
 
-     char *descriptor_block = new char[64];
-     Descriptor newDescriptor = Descriptor();
-     for(int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++)
-     newDescriptor.copyBytes(descriptor_block + descriptorIndexInBlock * 16);
-     for(int descriptorsBlocksIndex = 4; descriptorsBlocksIndex < 10; descriptorsBlocksIndex++)
-     io_system.writeBlock(descriptorsBlocksIndex, descriptor_block);
-     delete[] descriptor_block;
-     delete[] newDescriptor;
+    char *descriptor_block = new char[64];
+    Descriptor newDescriptor = Descriptor();
+    for(int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++)
+        newDescriptor.copyBytes(descriptor_block + descriptorIndexInBlock * 16);
+    for(int descriptorsBlocksIndex = 4; descriptorsBlocksIndex < 10; descriptorsBlocksIndex++)
+        io_system.writeBlock(descriptorsBlocksIndex, descriptor_block);
+    delete[] descriptor_block;
+    delete[] newDescriptor;
 
-     io_system.readBlock(1, oft.entries[0].block);
-     oft.entries[0].current_position=0;
+    io_system.readBlock(1, oft.entries[0].block);
+    oft.entries[0].current_position=0;
 }
 
 FileSystem::~FileSystem() {
