@@ -3,6 +3,7 @@
 #include "doctest.h"
 #include <cstring>
 #include "../file_system/entities/BitMap.h"
+#include "../file_system/FileSystem.h"
 
 TEST_CASE("File System"){
 
@@ -21,5 +22,12 @@ TEST_CASE("File System"){
         bitmap.setBitValue(1, 1);
         bitmap.copyBytes(buffer);
         REQUIRE( strcmp(buffer,"abcdefgh") == 0 );
+    }
+
+    SUBCASE("create File System"){
+        auto *io = new IOSystem;
+        FileSystem fs(*io);
+        REQUIRE (fs.createFile("test") == 0);
+        REQUIRE (fs.destroyFile("test") == 0);
     }
 }
