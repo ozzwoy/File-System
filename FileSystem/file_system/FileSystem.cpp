@@ -13,7 +13,7 @@ FileSystem::FileSystem(IOSystem &io_system) {
     char *bitmap_block = new char[64];
     io_system.readBlock(0, bitmap_block);
     bitMap.parse(bitmap_block);
-    for(int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         bitMap.setBitValue(i,true);
     }
     bitMap.copyBytes(bitmap_block);
@@ -21,23 +21,25 @@ FileSystem::FileSystem(IOSystem &io_system) {
     delete[] bitmap_block;
 
     char *directory_block = new char[64];
-    DirectoryEntry directory_entry = DirectoryEntry();
-    for(int directoryIndexInBlock = 0; directoryIndexInBlock < 8; directoryIndexInBlock++)
+    DirectoryEntry directory_entry;
+    for (int directoryIndexInBlock = 0; directoryIndexInBlock < 8; directoryIndexInBlock++) {
         directory_entry.copyBytes(directory_block + directoryIndexInBlock * 8);
-    for(int directoryBlocksIndex = 1; directoryBlocksIndex < 4; directoryBlocksIndex++)
+    }
+    for(int directoryBlocksIndex = 1; directoryBlocksIndex < 4; directoryBlocksIndex++) {
         io_system.writeBlock(directoryBlocksIndex, directory_block);
-    delete[] directory_block;
+    }
+    oft.entries[0].block = directory_block;
+    oft.entries[0].current_position = 0;
 
     char *descriptor_block = new char[64];
-    Descriptor newDescriptor = Descriptor();
-    for(int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++)
-        newDescriptor.copyBytes(descriptor_block + descriptorIndexInBlock * 16);
-    for(int descriptorsBlocksIndex = 4; descriptorsBlocksIndex < 10; descriptorsBlocksIndex++)
+    Descriptor descriptor;
+    for (int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++) {
+        descriptor.copyBytes(descriptor_block + descriptorIndexInBlock * 16);
+    }
+    for(int descriptorsBlocksIndex = 4; descriptorsBlocksIndex < 10; descriptorsBlocksIndex++) {
         io_system.writeBlock(descriptorsBlocksIndex, descriptor_block);
+    }
     delete[] descriptor_block;
-
-    io_system.readBlock(1, oft.entries[0].block);
-    oft.entries[0].current_position=0;
 }
 
 FileSystem::~FileSystem() {
@@ -52,7 +54,6 @@ void FileSystem::createFile(const char* file_name) {
     //if file name is incorrect
     if (strlen(file_name) > 4 ){
         throw std::length_error("File name must contain up to 4 characters.");
-        //return ERROR;
     }
 
     //find a free file descriptor
@@ -75,7 +76,6 @@ void FileSystem::createFile(const char* file_name) {
     //if there is no free file descriptor
     if (free_descriptor_index == -1) {
         throw std::length_error("Cannot create more than 24 files.");
-        //return ERROR;
     }
 
     //find a free directory entry
@@ -100,7 +100,6 @@ void FileSystem::createFile(const char* file_name) {
                     char message[100];
                     std::sprintf(message, "File with name \"%s\" already exists.", file_name);
                     throw std::invalid_argument(message);
-                    //return ERROR;
                 }
             }
         }
@@ -108,7 +107,6 @@ void FileSystem::createFile(const char* file_name) {
 
     if (free_directory_entry_index == -1) {
         throw std::length_error("Cannot create more than 24 files.");
-        //return ERROR;
     }
 
     //fill descriptor
@@ -128,7 +126,6 @@ void FileSystem::destroyFile(const char* file_name) {
     //if file name is incorrect
     if (strlen(file_name) > 4 ){
         throw std::length_error("File name must contain up to 4 characters.");
-        //return ERROR;
     }
 
     //find the file descriptor by searching the directory
@@ -165,7 +162,6 @@ void FileSystem::destroyFile(const char* file_name) {
         char message[100];
         std::sprintf(message, "File with name \"%s\" does not exist.", file_name);
         throw std::invalid_argument(message);
-        //return ERROR;
     }
 
     Descriptor descriptor;
@@ -217,7 +213,6 @@ int FileSystem::open(const char *file_name) {
             io_system.readBlock(i, oft.entries[0].block);
         }
     }
-
 
     if (descriptor_index == -1) {
         char message[100];
