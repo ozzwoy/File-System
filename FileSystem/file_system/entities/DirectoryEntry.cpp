@@ -1,4 +1,3 @@
-#include <cstring>
 #include "DirectoryEntry.h"
 #include "../utils/Utils.h"
 #include <algorithm>
