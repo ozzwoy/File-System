@@ -14,6 +14,7 @@ struct OFT{
         int current_position = -1;
         bool modified = false;
         char *block = nullptr;
+        Descriptor descriptor;
     };
 
     Entry entries[4];
