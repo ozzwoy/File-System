@@ -24,10 +24,10 @@ public:
         }
     }
 
-    static void copyBytes(DirectoryEntry* entries, char* buffer) {
+    static void copyBytes(DirectoryEntry* directory_entries, char* buffer) {
         char *entry_bytes = new char[8];
         for (int i = 0; i < 8; i++) {
-            entries[i].copyBytes(entry_bytes);
+            directory_entries[i].copyBytes(entry_bytes);
             std::copy(entry_bytes, entry_bytes + 8, buffer + i * 8);
         }
         delete[] entry_bytes;

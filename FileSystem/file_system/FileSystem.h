@@ -27,7 +27,7 @@ private:
     BitMap bitMap;
 
 public:
-	explicit FileSystem(IOSystem &io_system);
+	explicit FileSystem(IOSystem &io_system, bool is_initialized);
 	~FileSystem();
 
 	void createFile(const char* file_name);
@@ -42,7 +42,9 @@ public:
 private:
     void checkOFTIndex(int index) const;
     Descriptor getDescriptor(int oft_entry_index) const;
-    bool replaceBlockAtOFT(int oft_entry_index, int new_block_oft_index);
+    void saveCurrentBlock(OFT::Entry &entry);
+    int allocateNewBlock(OFT::Entry &entry);
+    bool replaceCurrentBlock(int oft_entry_index, int new_block_oft_index);
 };
 
 
