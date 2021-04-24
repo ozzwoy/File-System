@@ -1,5 +1,5 @@
-#ifndef FILE_SYSTEM_UTILS_H
-#define FILE_SYSTEM_UTILS_H
+#ifndef FILE_SYSTEM_NUMERICUTILS_H
+#define FILE_SYSTEM_NUMERICUTILS_H
 
 
 namespace Utils {
@@ -23,4 +23,4 @@ namespace Utils {
 }
 
 
-#endif //FILE_SYSTEM_UTILS_H
+#endif //FILE_SYSTEM_NUMERICUTILS_H
