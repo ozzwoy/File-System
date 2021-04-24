@@ -236,10 +236,12 @@ int FileSystem::open(const char *file_name) {
     if (oft_index == 4) {
         throw std::length_error("Can't open one more file.");
     } else {
-        oft.entries[oft_index].descriptor_index = descriptor_index;
-        oft.entries[oft_index].current_position = 0;
-        oft.entries[oft_index].block = new char[64];
-        replaceCurrentBlock(oft_index, 0);
+        OFT::Entry entry = oft.entries[oft_index];
+        entry.descriptor_index = descriptor_index;
+        entry.descriptor = getDescriptor(oft_index);
+        entry.current_position = 0;
+        entry.block = new char[64];
+        replaceCurrentBlock(entry, 0);
     }
 
     return oft_index;
@@ -297,12 +299,14 @@ int FileSystem::read(int index, char* mem_area, int count) {
     int i = 0;
 
     while (true) {
-        if (shift == 0) {
-            replaceCurrentBlock(index, entry.current_position / 64);
-        }
         for (; i + shift < 64 && i < count; i++) {
             mem_area[i] = entry.block[i + shift];
             entry.current_position++;
+        }
+        // if whole block was processed and we aren't at the end of file, do read-ahead
+        if (i + shift == 64 && entry.current_position != Descriptor::NUM_OF_BLOCKS * 64) {
+            entry.current_position--;
+            replaceCurrentBlock(entry, entry.current_position / 64);
         }
         if (i == count) {
             break;
@@ -321,20 +325,25 @@ int FileSystem::write(int index, const char* mem_area, int count) {
     if (entry.current_position == -1 || entry.current_position + count > Descriptor::NUM_OF_BLOCKS * 64) {
         throw std::out_of_range("Operation unsuccessful: file is out of bounds. Maximal size: 192 bytes.");
     }
-    if (entry.current_position == 0) {
-        allocateNewBlock(oft.entries[index]);
-    }
 
     int shift = entry.current_position % 64;
     int i = 0;
 
     while (true) {
-        if (shift == 0) {
-            replaceCurrentBlock(index, entry.current_position / 64);
+        // if current block is reserved, then use it and release reservation
+        if (shift == 0 && entry.current_position == entry.descriptor.getFileSize()) {
+            saveDescriptor(entry);
+            entry.reserved_block_index = -1;
         }
         for (; i + shift < 64 && i < count; i++) {
             entry.block[i + shift] = mem_area[i];
             entry.current_position++;
+            entry.descriptor.setFileSize(entry.current_position);
+        }
+        // if whole block was processed and we aren't at the end of file, do read-ahead
+        if (i + shift == 64 && entry.current_position != Descriptor::NUM_OF_BLOCKS * 64) {
+            entry.current_position--;
+            replaceCurrentBlock(entry, entry.current_position / 64);
         }
         if (i == count) {
             break;
@@ -357,8 +366,22 @@ void FileSystem::lseek(int index, int pos) {
         throw std::out_of_range(message);
     }
 
-    if (int(pos / 64) != int(oft.entries[index].current_position / 64)) {
-        replaceCurrentBlock(index, pos / 64);
+    int new_block_oft_index = pos / 64;
+    int current_block_oft_index = oft.entries[index].current_position / 64;
+    // if we are at the end of file, then we are on the last possible block
+    if (current_block_oft_index == Descriptor::NUM_OF_BLOCKS) {
+        current_block_oft_index--;
+    }
+
+    if (new_block_oft_index != current_block_oft_index) {
+        replaceCurrentBlock(entry, new_block_oft_index);
+        // if current block was reserved, free reservation
+        if (entry.reserved_block_index != -1) {
+            bitMap.resetBit(entry.reserved_block_index);
+            // TODO: bitmap backup
+            entry.descriptor.setBlockIndex(entry.reserved_block_index, -1);
+            entry.reserved_block_index = -1;
+        }
     }
     entry.current_position = pos;
 }
@@ -372,7 +395,7 @@ void FileSystem::directory() const {
     io_system.readBlock(descriptor_block_index, block);
     BlockParser::parseBlock(block, descriptors);
 
-    for (int i = 1, j = 0; i < 4; i++) {
+    for (int i = 1, j; i < 4; i++) {
         io_system.readBlock(i, block);
         BlockParser::parseBlock(block, directory_entries);
 
@@ -423,20 +446,25 @@ Descriptor FileSystem::getDescriptor(int oft_entry_index) const {
     return descriptor;
 }
 
-void FileSystem::saveCurrentBlock(OFT::Entry &entry) {
-    if (entry.current_position == 0) {
+void FileSystem::saveDescriptor(OFT::Entry const &entry) {
+    char *block = new char[64];
+    int block_index = entry.descriptor_index / 4 + 4;
+    io_system.readBlock(block_index, block);
+    entry.descriptor.copyBytes(block + (entry.descriptor_index % 4) * 16);
+    io_system.writeBlock(block_index, block);
+    delete[] block;
+}
+
+void FileSystem::saveCurrentBlock(OFT::Entry const &entry) {
+    if (entry.descriptor.getFileSize() == 0) {
         throw std::invalid_argument("No block to save");
     }
 
     // save file block
-    int current_block_oft_index = (entry.current_position - 1) / 64;
+    int current_block_oft_index = entry.current_position / 64;
     int block_index = entry.descriptor.getBlockIndex(current_block_oft_index);
     io_system.writeBlock(block_index, entry.block);
 
-    // update cached descriptor
-    if (entry.descriptor.getFileSize() < entry.current_position) {
-        entry.descriptor.setFileSize(entry.current_position);
-    }
     // save cached descriptor
     char *block = new char[64];
     int descriptor_block_index = entry.descriptor_index / 4 + 4;
@@ -470,33 +498,23 @@ int FileSystem::allocateNewBlock(OFT::Entry &entry) {
     return absolute_block_index;
 }
 
-bool FileSystem::replaceCurrentBlock(int oft_entry_index, int new_block_oft_index) {
-    OFT::Entry entry = oft.entries[oft_entry_index];
-    int current_block_index = (entry.current_position - 1) / 64;
-
-    // in case it's a directory OFT entry
-    if (oft_entry_index == 0) {
-        if (entry.modified) {
-            io_system.writeBlock(current_block_index + 1, entry.block);
-        }
-        io_system.readBlock(new_block_oft_index, oft.entries[oft_entry_index].block);
-        entry.current_position = 64 * new_block_oft_index;
-        entry.modified = false;
-        return true;
-    }
-
+void FileSystem::replaceCurrentBlock(OFT::Entry &entry, int new_block_oft_index) {
     // save current block only if modified
     if (entry.modified) {
         saveCurrentBlock(entry);
+        entry.modified = false;
     }
+
+    // TODO: OFT.entries[0] separate processing
+
     // load another block (may need allocation in disk memory)
     int absolute_block_index = entry.descriptor.getBlockIndex(new_block_oft_index);
     if (absolute_block_index == -1) {
+        // read-ahead with block reservation
         absolute_block_index = allocateNewBlock(entry);
+        entry.reserved_block_index = absolute_block_index;
     }
     io_system.readBlock(absolute_block_index, entry.block);
+    // set position at the beginning of the block
     entry.current_position = 64 * absolute_block_index;
-    entry.modified = false;
-
-    return true;
 }

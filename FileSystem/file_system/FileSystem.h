@@ -14,6 +14,7 @@ struct OFT{
         int current_position = -1;
         bool modified = false;
         char *block = nullptr;
+        int reserved_block_index = -1;
         Descriptor descriptor;
     };
 
@@ -42,9 +43,10 @@ public:
 private:
     void checkOFTIndex(int index) const;
     Descriptor getDescriptor(int oft_entry_index) const;
-    void saveCurrentBlock(OFT::Entry &entry);
+    void saveDescriptor(OFT::Entry const &entry);
+    void saveCurrentBlock(OFT::Entry const &entry);
     int allocateNewBlock(OFT::Entry &entry);
-    bool replaceCurrentBlock(int oft_entry_index, int new_block_oft_index);
+    void replaceCurrentBlock(OFT::Entry &entry, int new_block_oft_index);
 };
 
 
