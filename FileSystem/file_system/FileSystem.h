@@ -14,6 +14,8 @@ struct OFT{
         int current_position = -1;
         bool modified = false;
         char *block = nullptr;
+        int reserved_block_index = -1;
+        Descriptor descriptor;
     };
 
     Entry entries[4];
@@ -26,7 +28,7 @@ private:
     BitMap bitMap;
 
 public:
-	explicit FileSystem(IOSystem &io_system);
+	explicit FileSystem(IOSystem &io_system, bool is_initialized);
 	~FileSystem();
 
 	void createFile(const char* file_name);
@@ -41,7 +43,10 @@ public:
 private:
     void checkOFTIndex(int index) const;
     Descriptor getDescriptor(int oft_entry_index) const;
-    bool replaceBlockAtOFT(int oft_entry_index, int new_block_oft_index);
+    void saveDescriptor(OFT::Entry const &entry);
+    void saveCurrentBlock(OFT::Entry const &entry);
+    int allocateNewBlock(OFT::Entry &entry);
+    void replaceCurrentBlock(OFT::Entry &entry, int new_block_oft_index);
 };
 
 
