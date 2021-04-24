@@ -1,4 +1,6 @@
-#pragma once
+#ifndef FILE_SYSTEM_FILESYSTEM_H
+#define FILE_SYSTEM_FILESYSTEM_H
+
 
 #include "entities/BitMap.h"
 #include "../io_system/IOSystem.h"
@@ -41,3 +43,6 @@ private:
     Descriptor getDescriptor(int oft_entry_index) const;
     bool replaceBlockAtOFT(int oft_entry_index, int new_block_oft_index);
 };
+
+
+#endif //FILE_SYSTEM_FILESYSTEM_H
