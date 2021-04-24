@@ -4,14 +4,10 @@
 
 namespace Utils {
 
-    inline char* intToBytes(int number) {
-        char* bytes = new char[sizeof(int)];
-
+    inline void intToBytes(int number, char *buffer) {
         for (size_t i = 0; i < sizeof(int); i++) {
-            ((unsigned char*)bytes)[i] = ((unsigned char*)(&number))[i];
+            ((unsigned char*)buffer)[i] = ((unsigned char*)(&number))[i];
         }
-
-        return bytes;
     }
 
     inline int bytesToInt32(const char* bytes) {
