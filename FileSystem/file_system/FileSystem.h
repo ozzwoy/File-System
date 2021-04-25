@@ -2,6 +2,8 @@
 #define FILE_SYSTEM_FILESYSTEM_H
 
 
+#include <vector>
+#include <string>
 #include "entities/BitMap.h"
 #include "../io_system/IOSystem.h"
 #include "entities/Descriptor.h"
@@ -28,8 +30,8 @@ private:
     BitMap bitMap;
 
 public:
-	explicit FileSystem(IOSystem &io_system, bool is_initialized);
-	~FileSystem();
+	explicit FileSystem();
+    ~FileSystem();
 
 	void createFile(const char* file_name);
 	void destroyFile(const char* file_name);
@@ -38,15 +40,22 @@ public:
 	int read(int index, char* mem_area, int count);
 	int write(int index, const char* mem_area, int count);
 	void lseek(int index, int pos);
-	void directory() const;
+	[[nodiscard]] std::vector<std::string> directory() const;
+
+    bool init(const char *path);
+    void save(const char *path);
 
 private:
     void checkOFTIndex(int index) const;
-    Descriptor getDescriptor(int oft_entry_index) const;
+    [[nodiscard]] Descriptor getDescriptor(int oft_entry_index) const;
     void saveDescriptor(OFT::Entry const &entry);
+    void saveBitmap();
     void saveCurrentBlock(OFT::Entry const &entry);
-    int allocateNewBlock(OFT::Entry &entry);
-    void replaceCurrentBlock(OFT::Entry &entry, int new_block_oft_index);
+    int reserveBlock(OFT::Entry &entry);
+    void freeReservation(OFT::Entry &entry);
+    void loadBlock(OFT::Entry &entry, int relative_block_index);
+    void replaceCurrentBlock(OFT::Entry &entry, int relative_block_index);
+    void closeAllFiles();
 };
 
 
