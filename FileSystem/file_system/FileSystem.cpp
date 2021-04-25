@@ -252,22 +252,7 @@ void FileSystem::close(int index) {
     OFT::Entry entry = oft.entries[index];
 
     if (entry.modified) {
-        Descriptor descriptor;
-        char *descriptors_block = new char[64];
-        int shift = entry.descriptor_index % 4;
-        io_system.readBlock(entry.descriptor_index / 4, descriptors_block);
-        descriptor.parse(descriptors_block + shift * 4);
-
-        int relative_block_num = entry.current_position / 64;
-        int absolute_block_num = descriptor.getBlockIndex(relative_block_num);
-        io_system.writeBlock(absolute_block_num, entry.block);
-
-        if (entry.current_position > descriptor.getFileSize()) {
-            descriptor.setFileSize(entry.current_position);
-        }
-        int descriptor_num = entry.descriptor_index % 4;
-        descriptor.copyBytes(descriptors_block + descriptor_num * 16);
-        io_system.writeBlock(entry.descriptor_index / 4, descriptors_block);
+        saveCurrentBlock(entry);
     } else if (entry.reserved_block_index != -1) {
         bitMap.resetBit(entry.reserved_block_index);
         // TODO: bitmap backup
