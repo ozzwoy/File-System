@@ -1,17 +1,13 @@
-#ifndef FILE_SYSTEM_UTILS_H
-#define FILE_SYSTEM_UTILS_H
+#ifndef FILE_SYSTEM_NUMERICUTILS_H
+#define FILE_SYSTEM_NUMERICUTILS_H
 
 
 namespace Utils {
 
-    inline char* intToBytes(int number) {
-        char* bytes = new char[sizeof(int)];
-
+    inline void intToBytes(int number, char *buffer) {
         for (size_t i = 0; i < sizeof(int); i++) {
-            ((unsigned char*)bytes)[i] = ((unsigned char*)(&number))[i];
+            ((unsigned char*)buffer)[i] = ((unsigned char*)(&number))[i];
         }
-
-        return bytes;
     }
 
     inline int bytesToInt32(const char* bytes) {
@@ -27,4 +23,4 @@ namespace Utils {
 }
 
 
-#endif //FILE_SYSTEM_UTILS_H
+#endif //FILE_SYSTEM_NUMERICUTILS_H
