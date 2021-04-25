@@ -7,6 +7,7 @@
 class Descriptor : public Entity {
 public:
     static const int NUM_OF_BLOCKS = 3;
+    static const int SIZE = 16;
 
 private:
     int file_size;

@@ -26,7 +26,7 @@ namespace IOUtils{
         out.close();
     }
 
-    void init(IOSystem &ldisk, const char *path){
+    void restore(IOSystem &ldisk, const char *path){
         std::ifstream in(path);
         char *block = new char[IOSystem::BLOCK_SIZE];
 
