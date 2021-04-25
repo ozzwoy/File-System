@@ -329,7 +329,6 @@ int FileSystem::write(int index, const char* mem_area, int count) {
         for (; i + shift < 64 && i < count; i++) {
             entry.block[i + shift] = mem_area[i];
             entry.current_position++;
-            entry.descriptor.setFileSize(entry.current_position);
         }
         // if whole block was processed and we aren't at the end of file, do read-ahead
         if (i + shift == 64 && entry.current_position != Descriptor::NUM_OF_BLOCKS * 64) {
@@ -337,6 +336,9 @@ int FileSystem::write(int index, const char* mem_area, int count) {
             replaceCurrentBlock(entry, entry.current_position / 64);
         }
         if (i == count) {
+            if (entry.current_position > entry.descriptor.getFileSize()) {
+                entry.descriptor.setFileSize(entry.current_position);
+            }
             break;
         }
         i = 0;
@@ -440,8 +442,10 @@ Descriptor FileSystem::getDescriptor(int oft_entry_index) const {
 void FileSystem::saveDescriptor(OFT::Entry const &entry) {
     char *block = new char[64];
     int block_index = entry.descriptor_index / 4 + 4;
+    int shift = (entry.descriptor_index % 4) * 16;
+
     io_system.readBlock(block_index, block);
-    entry.descriptor.copyBytes(block + (entry.descriptor_index % 4) * 16);
+    entry.descriptor.copyBytes(block + shift);
     io_system.writeBlock(block_index, block);
     delete[] block;
 }
@@ -455,14 +459,8 @@ void FileSystem::saveCurrentBlock(OFT::Entry const &entry) {
     int current_block_oft_index = entry.current_position / 64;
     int block_index = entry.descriptor.getBlockIndex(current_block_oft_index);
     io_system.writeBlock(block_index, entry.block);
-
     // save cached descriptor
-    char *block = new char[64];
-    int descriptor_block_index = entry.descriptor_index / 4 + 4;
-    int shift = (entry.descriptor_index % 4) * 16;
-    entry.descriptor.copyBytes(block + shift);
-    io_system.writeBlock(descriptor_block_index, block);
-    delete[] block;
+    saveDescriptor(entry);
 }
 
 int FileSystem::allocateNewBlock(OFT::Entry &entry) {
