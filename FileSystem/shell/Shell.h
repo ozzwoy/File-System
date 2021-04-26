@@ -9,7 +9,8 @@ public:
 
 private:
     FileSystem fs;
-    void incorrectInput();
+
+    static void incorrectInput();
 };
 
 

@@ -25,11 +25,11 @@ public:
     void copyBytes(char *buffer) const override;
     void clear() override;
 
-    bool isBitSet(size_t bit) const;
+    [[nodiscard]] bool isBitSet(size_t bit) const;
     void setBitValue(size_t bit, bool value);
     void setBit(size_t bit);
     void resetBit(size_t bit);
-    int findZeroBit() const;
+    [[nodiscard]] int findZeroBit() const;
 };
 
 

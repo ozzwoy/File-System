@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.17)
 project(file_system)
 
 set(CMAKE_CXX_STANDARD 17)
-option(BUILD_TESTS "Build tests" ON)
+option(BUILD_TESTS "Build tests" OFF)
 
 add_executable(main main.cpp file_system/FileSystem.h file_system/FileSystem.cpp file_system/utils/NumericUtils.h
         file_system/entities/Descriptor.h file_system/entities/Descriptor.cpp file_system/entities/DirectoryEntry.h

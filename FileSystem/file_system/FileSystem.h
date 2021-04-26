@@ -42,7 +42,7 @@ public:
 	void lseek(int index, int pos);
 	[[nodiscard]] std::vector<std::string> directory() const;
 
-    bool init(const char *path);
+    bool init(const char *path = "");
     void save(const char *path);
 
 private:
