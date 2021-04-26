@@ -27,9 +27,9 @@ public:
     void copyBytes(char *buffer) const override;
     void clear() override;
 
-    bool isFree() const;
+    [[nodiscard]] bool isFree() const;
     void copyFileName(char *buffer) const;
-    int getDescriptorIndex() const;
+    [[nodiscard]] int getDescriptorIndex() const;
     void setFileName(const char *new_file_name);
     void setDescriptorIndex(int new_descriptor_index);
 };

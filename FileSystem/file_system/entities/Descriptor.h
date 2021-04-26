@@ -27,9 +27,9 @@ public:
     void copyBytes(char *buffer) const override;
     void clear() override;
 
-    bool isFree() const;
-    int getFileSize() const;
-    int getBlockIndex(int i) const;
+    [[nodiscard]] bool isFree() const;
+    [[nodiscard]] int getFileSize() const;
+    [[nodiscard]] int getBlockIndex(int i) const;
     void setFileSize(int new_file_size);
     void setBlockIndex(int i, int value);
 };

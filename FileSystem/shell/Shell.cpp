@@ -14,7 +14,7 @@ void Shell::start(int argc, char **argv) {
         std::string str;
         std::getline(*in, str);
         if (argc == 2) {
-            if (str.size() == 0) exit(0);
+            if (str.empty()) exit(0);
             std::cout << str << std::endl;
         }
 

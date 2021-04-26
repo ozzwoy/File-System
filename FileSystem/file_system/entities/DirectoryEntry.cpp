@@ -73,13 +73,12 @@ int DirectoryEntry::getDescriptorIndex() const {
 }
 
 void DirectoryEntry::setFileName(const char *new_file_name) {
-    for (int i = 0; i < MAX_FILE_NAME_SIZE; i++) {
+    for (int i = 0; i < MAX_FILE_NAME_SIZE + 1; i++) {
         file_name[i] = new_file_name[i];
         if (new_file_name[i] == '\0') {
             break;
         }
     }
-    file_name[MAX_FILE_NAME_SIZE] = '\0';
 }
 
 void DirectoryEntry::setDescriptorIndex(int new_descriptor_index) {
