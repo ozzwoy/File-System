@@ -8,29 +8,12 @@
 
 class BlockParser {
 public:
-    static void parseBlock(const char* block, DirectoryEntry* buffer) {
-        DirectoryEntry entry;
-        for (int i = 0; i < 8; i++) {
-            entry.parse(block + i * 8);
-            buffer[i] = entry;
-        }
-    }
-
     static void parseBlock(const char* block, Descriptor* buffer) {
         Descriptor descriptor;
         for (int i = 0; i < 4; i++) {
             descriptor.parse(block + i * 16);
             buffer[i] = descriptor;
         }
-    }
-
-    static void copyBytes(DirectoryEntry* directory_entries, char* buffer) {
-        char *entry_bytes = new char[8];
-        for (int i = 0; i < 8; i++) {
-            directory_entries[i].copyBytes(entry_bytes);
-            std::copy(entry_bytes, entry_bytes + 8, buffer + i * 8);
-        }
-        delete[] entry_bytes;
     }
 
     static void copyBytes(Descriptor* descriptors, char* buffer) {

@@ -9,7 +9,7 @@
 #include "IOSystem.h"
 
 
-namespace IOUtils{
+namespace IOUtils {
 
     void save(IOSystem const &ldisk, const char *path) {
         std::ofstream out(path);
