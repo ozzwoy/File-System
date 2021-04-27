@@ -7,7 +7,6 @@
 #include <io_system/IOUtils.h>
 
 
-/**TODO*/
 FileSystem::FileSystem() {
     init();
 }
@@ -22,6 +21,7 @@ void FileSystem::initOFTEntry(OFT::Entry &entry, int descriptor_index) {
     entry.descriptor_index = descriptor_index;
     loadDescriptor(entry);
     entry.current_position = 0;
+    delete[] entry.block;
     entry.block = new char[IOSystem::BLOCK_SIZE];
     loadBlock(entry, 0);
 }
@@ -75,7 +75,10 @@ bool FileSystem::init(const char *path) {
     descriptor.copyBytes(descriptor_block);
     io_system.writeBlock(1, descriptor_block);
     // open directory
-    initOFTEntry(oft.entries[0], 0);
+    oft.entries[0].descriptor = descriptor;
+    oft.entries[0].current_position = 0;
+    oft.entries[0].block = new char[IOSystem::BLOCK_SIZE];
+    loadBlock(oft.entries[0], 0);
 
     delete[] descriptor_block;
     return false;
@@ -184,12 +187,12 @@ void FileSystem::destroyFile(const char* file_name) {
     bool found = false;
     int descriptor_index = -1;
     char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    DirectoryEntry directory_entry;
     int i = 0;
 
     doSeek(oft.entries[0], 0);
 
     while (doRead(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE) == DirectoryEntry::SIZE) {
-        DirectoryEntry directory_entry;
         directory_entry.parse(directory_entry_mem);
 
         if (!directory_entry.isFree()) {
@@ -198,7 +201,7 @@ void FileSystem::destroyFile(const char* file_name) {
             if (std::strcmp(file_name2, file_name) == 0) {
                 found = true;
                 descriptor_index = directory_entry.getDescriptorIndex();
-                //remove the directory entry
+                // remove the directory entry
                 directory_entry.clear();
                 directory_entry.copyBytes(directory_entry_mem);
                 doSeek(oft.entries[0], i * DirectoryEntry::SIZE);
@@ -318,8 +321,8 @@ int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
     int i = 0;
 
     while (true) {
-        for (; i + shift < IOSystem::BLOCK_SIZE && i + shift < file_size && i < count; i++) {
-            mem_area[i] = entry.block[i + shift];
+        for (; i + shift < IOSystem::BLOCK_SIZE && entry.current_position < file_size && bytes_read < count; i++) {
+            mem_area[bytes_read] = entry.block[i + shift];
             bytes_read++;
             entry.current_position++;
         }
@@ -327,10 +330,10 @@ int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
         // if whole block was processed and file hasn't reached its max size, do read-ahead
         if (i + shift == IOSystem::BLOCK_SIZE && entry.current_position != MAX_FILE_SIZE) {
             entry.current_position--;
-            replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE);
+            replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE + 1);
         }
 
-        if (i == count || entry.current_position == file_size) {
+        if (bytes_read == count || entry.current_position == file_size) {
             break;
         }
         i = 0;
@@ -347,7 +350,7 @@ int FileSystem::write(int index, const char *mem_area, int count) {
 
 int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
     int file_size = entry.descriptor.getFileSize();
-    int bytes_read = 0;
+    int bytes_written = 0;
     int shift = entry.current_position % IOSystem::BLOCK_SIZE;
     int i = 0;
 
@@ -357,32 +360,35 @@ int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
             saveDescriptor(entry);
             entry.reserved_block_index = -1;
         }
+        // set modification bit if something is going to be written
+        if (count > 0) {
+            entry.modified = true;
+        }
 
-        for (; i + shift < IOSystem::BLOCK_SIZE && i < count; i++) {
-            entry.block[i + shift] = mem_area[i];
-            bytes_read++;
+        for (; i + shift < IOSystem::BLOCK_SIZE && bytes_written < count; i++) {
+            entry.block[i + shift] = mem_area[bytes_written];
+            bytes_written++;
             entry.current_position++;
             if (entry.current_position > file_size) {
-                file_size++;
+                file_size = entry.current_position;
+                entry.descriptor.setFileSize(file_size);
             }
-            entry.modified = true;
         }
 
         // if whole block was processed and file hasn't reached its max size, do read-ahead
         if (i + shift == IOSystem::BLOCK_SIZE && entry.current_position != MAX_FILE_SIZE) {
             entry.current_position--;
-            replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE);
+            replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE + 1);
         }
 
-        if (i == count || entry.current_position == MAX_FILE_SIZE) {
-            entry.descriptor.setFileSize(file_size);
+        if (bytes_written == count || entry.current_position == MAX_FILE_SIZE) {
             break;
         }
         i = 0;
         shift = 0;
     }
 
-    return bytes_read;
+    return bytes_written;
 }
 
 void FileSystem::lseek(int index, int pos) {
@@ -478,7 +484,7 @@ void FileSystem::checkOFTIndex(int index) const {
         throw std::out_of_range(message);
     } else if (oft.entries[index].descriptor_index == -1) {
         char message[100];
-        std::sprintf(message, "File with index %d wasn't opened.", index);
+        std::sprintf(message, "File with index %d is not opened.", index);
         throw std::invalid_argument(message);
     }
 }
@@ -534,7 +540,7 @@ int FileSystem::reserveBlock(OFT::Entry &entry) {
     // find first free position in bitmap
     int absolute_block_index = bitMap.findZeroBit();
     if (absolute_block_index == -1) {
-        throw std::length_error("Cannot allocate memory for file. Disk is full.");
+        throw std::length_error("Cannot allocate memory. Disk is full.");
     }
     bitMap.setBit(absolute_block_index);
     saveBitmap();
@@ -567,7 +573,7 @@ void FileSystem::loadBlock(OFT::Entry &entry, int relative_block_index) {
 
 void FileSystem::saveBlock(OFT::Entry const &entry) {
     if (entry.descriptor.getFileSize() == 0) {
-        throw std::invalid_argument("No block to save");
+        return;
     }
 
     // save file block
