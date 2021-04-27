@@ -43,7 +43,7 @@ public:
 	int read(int index, char* mem_area, int count);
 	int write(int index, const char* mem_area, int count);
 	void lseek(int index, int pos);
-	[[nodiscard]] std::vector<std::string> directory() const;
+	[[nodiscard]] std::vector<std::string> directory();
 
     bool init(const char *path = "");
     void save(const char *path);
@@ -52,6 +52,7 @@ private:
     void initOFTEntry(OFT::Entry &entry, int descriptor_index);
     static void clearOFTEntry(OFT::Entry &entry);
 
+    void doClose(OFT::Entry &entry);
     int doRead(OFT::Entry &entry, char* mem_area, int count);
     int doWrite(OFT::Entry &entry, const char* mem_area, int count);
     void doSeek(OFT::Entry &entry, int pos);

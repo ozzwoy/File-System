@@ -89,7 +89,6 @@ void FileSystem::save(const char *path) {
 
 void FileSystem::createFile(const char* file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
-    const int directory_entries_num = IOSystem::BLOCK_SIZE / DirectoryEntry::SIZE;
 
     // if file name is incorrect
     if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0'){
@@ -121,49 +120,60 @@ void FileSystem::createFile(const char* file_name) {
 
     // find a free directory entry
     int free_directory_entry_index = -1;
+    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
     DirectoryEntry directory_entry, current;
+    directory_entry.setFileName(file_name);
+    directory_entry.setDescriptorIndex(free_descriptor_index);
+    int i = 0;
 
-    for (int i = 0; i < 3; i++) {
-        replaceBlock(oft.entries[0], i);
-        for (int j = 0; j < directory_entries_num; j++) {
-            current.parse(oft.entries[0].block + j * DirectoryEntry::SIZE);
+    doSeek(oft.entries[0], 0);
 
-            if (free_directory_entry_index == -1 && current.isFree()) {
-                free_directory_entry_index = j;
-                directory_entry.setFileName(file_name);
-                directory_entry.setDescriptorIndex(free_descriptor_index);
-            } else {
-                char file_name2[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
-                current.copyFileName(file_name2);
-                if (std::strcmp(file_name2, file_name) == 0) {
-                    delete[] descriptor_block;
-                    char message[100];
-                    std::sprintf(message, "File with name \"%s\" already exists.", file_name);
-                    throw std::invalid_argument(message);
-                }
+    while (doRead(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE) == DirectoryEntry::SIZE) {
+        current.parse(directory_entry_mem);
+
+        if (free_directory_entry_index == -1 && current.isFree()) {
+            free_directory_entry_index = i;
+        } else {
+            char file_name2[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
+            current.copyFileName(file_name2);
+            if (std::strcmp(file_name2, file_name) == 0) {
+                delete[] directory_entry_mem;
+                delete[] descriptor_block;
+                char message[100];
+                std::sprintf(message, "File with name \"%s\" already exists.", file_name);
+                throw std::invalid_argument(message);
             }
         }
+
+        i++;
     }
 
     if (free_directory_entry_index == -1) {
-        delete[] descriptor_block;
-        throw std::length_error("Cannot create more than 24 files.");
+        // all entries in a directory file are busy
+        if (oft.entries[0].current_position == MAX_FILE_SIZE) {
+            delete[] directory_entry_mem;
+            delete[] descriptor_block;
+            throw std::length_error("Cannot create more than 23 files.");
+        } else {
+            directory_entry.copyBytes(directory_entry_mem);
+            doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
+        }
+    } else {
+        // write directory entry to spare place
+        directory_entry.copyBytes(directory_entry_mem);
+        doSeek(oft.entries[0], free_directory_entry_index * DirectoryEntry::SIZE);
+        doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
     }
+    delete[] directory_entry_mem;
 
     // fill descriptor
     descriptor.copyBytes(descriptor_block + (free_descriptor_index % descriptors_num) * Descriptor::SIZE);
     io_system.writeBlock(free_descriptor_index / descriptors_num + 4, descriptor_block);
     delete[] descriptor_block;
-
-    // fill directory entry
-    replaceBlock(oft.entries[0], free_directory_entry_index / 8);
-    directory_entry.copyBytes(oft.entries[0].block + free_directory_entry_index * DirectoryEntry::SIZE);
-    oft.entries[0].modified = true;
 }
 
 void FileSystem::destroyFile(const char* file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
-    const int directory_entries_num = IOSystem::BLOCK_SIZE / DirectoryEntry::SIZE;
 
     // if file name is incorrect
     if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0'){
@@ -171,31 +181,37 @@ void FileSystem::destroyFile(const char* file_name) {
     }
 
     // find the file descriptor by searching the directory
-    // find a directory entry
+    // find the directory entry
     bool found = false;
     int descriptor_index = -1;
+    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    int i = 0;
 
-    for (int i = 0; i < 3 && !found; i++) {
-        replaceBlock(oft.entries[0], i);
-        for (int j = 0; j < directory_entries_num; j++) {
-            DirectoryEntry directory_entry;
-            directory_entry.parse(oft.entries[0].block + j * 8);
+    doSeek(oft.entries[0], 0);
 
-            if (!directory_entry.isFree()) {
-                char file_name2[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
-                directory_entry.copyFileName(file_name2);
-                if (std::strcmp(file_name2, file_name) == 0) {
-                    found = true;
-                    descriptor_index = directory_entry.getDescriptorIndex();
-                    //remove the directory entry
-                    directory_entry.clear();
-                    directory_entry.copyBytes(oft.entries[0].block + j * 8);
-                    oft.entries[0].modified = true;
-                    break;
-                }
+    while (doRead(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE) == DirectoryEntry::SIZE) {
+        DirectoryEntry directory_entry;
+        directory_entry.parse(directory_entry_mem);
+
+        if (!directory_entry.isFree()) {
+            char file_name2[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
+            directory_entry.copyFileName(file_name2);
+            if (std::strcmp(file_name2, file_name) == 0) {
+                found = true;
+                descriptor_index = directory_entry.getDescriptorIndex();
+                //remove the directory entry
+                directory_entry.clear();
+                directory_entry.copyBytes(directory_entry_mem);
+                doSeek(oft.entries[0], i * DirectoryEntry::SIZE);
+                doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
+                break;
             }
         }
+
+        i++;
     }
+
+    delete[] directory_entry_mem;
 
     // if file was not found
     if (!found) {
@@ -226,15 +242,11 @@ void FileSystem::destroyFile(const char* file_name) {
         entry->descriptor.clear();
         // save clean descriptor on disk
         saveDescriptor(*entry);
-        entry->reserved_block_index = -1;
-        // reset modification bit, in order that cached block doesn't get saved when closing file
-        entry->modified = false;
-        // reset OFT::Entry fields
-        close(oft_index);
+        clearOFTEntry(*entry);
     }
 
     // update the bitmap to reflect the freed blocks
-    for (int i = 0; i < Descriptor::NUM_OF_BLOCKS && descriptor.getBlockIndex(i) != -1; i++) {
+    for (i = 0; i < Descriptor::NUM_OF_BLOCKS && descriptor.getBlockIndex(i) != -1; i++) {
         bitMap.resetBit(descriptor.getBlockIndex(i));
     }
     // save changes to disk (write-through caching)
@@ -283,21 +295,21 @@ int FileSystem::open(const char *file_name) {
 
 void FileSystem::close(int index) {
     checkOFTIndex(index);
-    OFT::Entry* entry = &oft.entries[index];
+    doClose(oft.entries[index]);
+}
 
-    if (entry->modified) {
-        saveBlock(*entry);
-    } else if (entry->reserved_block_index != -1) {
-        freeReservation(*entry);
+void FileSystem::doClose(OFT::Entry &entry) {
+    if (entry.modified) {
+        saveBlock(entry);
+    } else if (entry.reserved_block_index != -1) {
+        freeReservation(entry);
     }
-    clearOFTEntry(*entry);
+    clearOFTEntry(entry);
 }
 
 int FileSystem::read(int index, char *mem_area, int count) {
     checkOFTIndex(index);
-    OFT::Entry* entry = &oft.entries[index];
-
-    return doRead(*entry, mem_area, count);
+    return doRead(oft.entries[index], mem_area, count);
 }
 
 int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
@@ -331,9 +343,7 @@ int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
 
 int FileSystem::write(int index, const char *mem_area, int count) {
     checkOFTIndex(index);
-    OFT::Entry* entry = &oft.entries[index];
-
-    return doWrite(*entry, mem_area, count);
+    return doWrite(oft.entries[index], mem_area, count);
 }
 
 int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
@@ -405,44 +415,58 @@ void FileSystem::doSeek(OFT::Entry &entry, int pos) {
     entry.current_position = pos;
 }
 
-std::vector<std::string> FileSystem::directory() const {
+std::vector<std::string> FileSystem::directory() {
     std::vector<std::string> filenames;
-    char *block = new char[64];
+    char *block = new char[IOSystem::BLOCK_SIZE];
 
-    DirectoryEntry directory_entries[8];
+    DirectoryEntry directory_entry;
+    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    Descriptor descriptor;
     Descriptor descriptors[4];
     int descriptor_block_index = 4;
 
     io_system.readBlock(descriptor_block_index, block);
     BlockParser::parseBlock(block, descriptors);
 
-    for (int i = 1, j; i < 4; i++) {
-        io_system.readBlock(i, block);
-        BlockParser::parseBlock(block, directory_entries);
+    doSeek(oft.entries[0], 0);
 
-        for (DirectoryEntry &directory_entry : directory_entries) {
-            if (!directory_entry.isFree()) {
-                char file_name[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
-                directory_entry.copyFileName(file_name);
-                int descriptor_index = directory_entry.getDescriptorIndex();
-                j = descriptor_index % 4;
+    while (doRead(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE) == DirectoryEntry::SIZE) {
+        directory_entry.parse(directory_entry_mem);
 
+        if (!directory_entry.isFree()) {
+            char file_name[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
+            directory_entry.copyFileName(file_name);
+            int descriptor_index = directory_entry.getDescriptorIndex();
+            int i = descriptor_index % 4;
+            bool cached = false;
+
+            for (int j = 1; j < 4; j++) {
+                if (oft.entries[j].descriptor_index == descriptor_index) {
+                    descriptor = oft.entries[j].descriptor;
+                    cached = true;
+                    break;
+                }
+            }
+
+            if (!cached) {
                 // if descriptor doesn't belong to currently cached block
                 // (then it necessarily belongs to one of the next blocks)
                 if (descriptor_index / 4 != descriptor_block_index - 4) {
                     descriptor_block_index = descriptor_index / 4 + 4;
                     io_system.readBlock(descriptor_block_index, block);
                     BlockParser::parseBlock(block, descriptors);
+                    descriptor = descriptors[i];
                 }
-
-                std::string file_name_size(file_name);
-                file_name_size.push_back(' ');
-                file_name_size += std::to_string(descriptors[j].getFileSize());
-                filenames.push_back(file_name_size);
             }
+
+            std::string file_name_str(file_name);
+            file_name_str.push_back(' ');
+            file_name_str += std::to_string(descriptor.getFileSize());
+            filenames.push_back(file_name_str);
         }
     }
 
+    delete[] directory_entry_mem;
     delete[] block;
     return filenames;
 }
@@ -567,15 +591,9 @@ void FileSystem::replaceBlock(OFT::Entry &entry, int relative_block_index) {
 }
 
 void FileSystem::closeAllFiles() {
-    int oft_index = 1;
-    while (oft_index < 4) {
-        if (oft.entries[oft_index].descriptor_index != -1) {
-            close(oft_index);
+    for (OFT::Entry &entry : oft.entries) {
+        if (entry.descriptor_index != -1) {
+            doClose(entry);
         }
-        oft_index++;
-    }
-
-    if (oft.entries[0].modified) {
-        saveBlock(oft.entries[0]);
     }
 }
