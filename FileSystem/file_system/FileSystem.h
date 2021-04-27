@@ -24,6 +24,9 @@ struct OFT{
 };
 
 class FileSystem {
+public:
+    static const int MAX_FILE_SIZE = IOSystem::BLOCK_SIZE * Descriptor::NUM_OF_BLOCKS;
+
 private:
     OFT oft;
     IOSystem io_system;
@@ -46,15 +49,25 @@ public:
     void save(const char *path);
 
 private:
+    void initOFTEntry(OFT::Entry &entry, int descriptor_index);
+    static void clearOFTEntry(OFT::Entry &entry);
+
+    int doRead(OFT::Entry &entry, char* mem_area, int count);
+    int doWrite(OFT::Entry &entry, const char* mem_area, int count);
+    void doSeek(OFT::Entry &entry, int pos);
     void checkOFTIndex(int index) const;
-    [[nodiscard]] Descriptor getDescriptor(int oft_entry_index) const;
+
+    void loadDescriptor(OFT::Entry &entry);
     void saveDescriptor(OFT::Entry const &entry);
+    void loadBitmap();
     void saveBitmap();
-    void saveCurrentBlock(OFT::Entry const &entry);
+
     int reserveBlock(OFT::Entry &entry);
     void freeReservation(OFT::Entry &entry);
     void loadBlock(OFT::Entry &entry, int relative_block_index);
-    void replaceCurrentBlock(OFT::Entry &entry, int relative_block_index);
+    void saveBlock(OFT::Entry const &entry);
+    void replaceBlock(OFT::Entry &entry, int relative_block_index);
+
     void closeAllFiles();
 };
 
