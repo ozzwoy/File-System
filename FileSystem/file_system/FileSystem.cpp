@@ -3,7 +3,6 @@
 #include "utils/BlockParser.h"
 #include "../io_system/IOSystem.h"
 #include <stdexcept>
-#include <iostream>
 #include <cstring>
 #include <io_system/IOUtils.h>
 
@@ -67,14 +66,14 @@ bool FileSystem::init(const char *path) {
     for (int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++) {
         descriptor.copyBytes(descriptor_block + descriptorIndexInBlock * Descriptor::SIZE);
     }
-    for (int descriptorsBlocksIndex = 5; descriptorsBlocksIndex < 10; descriptorsBlocksIndex++) {
+    for (int descriptorsBlocksIndex = 2; descriptorsBlocksIndex < 7; descriptorsBlocksIndex++) {
         io_system.writeBlock(descriptorsBlocksIndex, descriptor_block);
     }
 
     // separately reset directory descriptor
     descriptor.setFileSize(0);
     descriptor.copyBytes(descriptor_block);
-    io_system.writeBlock(4, descriptor_block);
+    io_system.writeBlock(1, descriptor_block);
     // open directory
     initOFTEntry(oft.entries[0], 0);
 
@@ -100,12 +99,12 @@ void FileSystem::createFile(const char* file_name) {
     char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
     Descriptor descriptor;
 
-    for (int block_index = 4; block_index < 10 && free_descriptor_index == -1; block_index++) {
+    for (int block_index = 1; block_index < 7 && free_descriptor_index == -1; block_index++) {
         io_system.readBlock(block_index, descriptor_block);
         for (int i = 0; i < descriptors_num; i++) {
             descriptor.parse(descriptor_block + i * Descriptor::SIZE);
             if (descriptor.isFree()){
-                free_descriptor_index = (block_index - 4) * descriptors_num + i;
+                free_descriptor_index = (block_index - 1) * descriptors_num + i;
                 descriptor.setFileSize(0);
                 break;
             }
@@ -115,7 +114,7 @@ void FileSystem::createFile(const char* file_name) {
     // if there is no free file descriptor
     if (free_descriptor_index == -1) {
         delete[] descriptor_block;
-        throw std::length_error("Cannot create more than 24 files.");
+        throw std::length_error("Cannot create more than 23 files.");
     }
 
     // find a free directory entry
@@ -168,7 +167,7 @@ void FileSystem::createFile(const char* file_name) {
 
     // fill descriptor
     descriptor.copyBytes(descriptor_block + (free_descriptor_index % descriptors_num) * Descriptor::SIZE);
-    io_system.writeBlock(free_descriptor_index / descriptors_num + 4, descriptor_block);
+    io_system.writeBlock(free_descriptor_index / descriptors_num + 1, descriptor_block);
     delete[] descriptor_block;
 }
 
@@ -230,11 +229,11 @@ void FileSystem::destroyFile(const char* file_name) {
     // if file wasn't opened
     if (oft_index == 4) {
         char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
-        io_system.readBlock(descriptor_index / descriptors_num + 4, descriptor_block);
+        io_system.readBlock(descriptor_index / descriptors_num + 1, descriptor_block);
 
         // free the file descriptor
         descriptor.copyBytes(descriptor_block + (descriptor_index % descriptors_num) * Descriptor::SIZE);
-        io_system.writeBlock(descriptor_index / descriptors_num + 4, descriptor_block);
+        io_system.writeBlock(descriptor_index / descriptors_num + 1, descriptor_block);
         delete[] descriptor_block;
     } else {
         OFT::Entry* entry = &oft.entries[oft_index];
@@ -331,7 +330,7 @@ int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
             replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE);
         }
 
-        if (i == count) {
+        if (i == count || entry.current_position == file_size) {
             break;
         }
         i = 0;
@@ -353,20 +352,20 @@ int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
     int i = 0;
 
     while (true) {
-        entry.modified = true;
         // if current block is reserved, then use it and release reservation
         if (shift == 0 && entry.current_position == file_size) {
             saveDescriptor(entry);
             entry.reserved_block_index = -1;
         }
 
-        for (; i + shift < IOSystem::BLOCK_SIZE && i + shift < file_size && i < count; i++) {
+        for (; i + shift < IOSystem::BLOCK_SIZE && i < count; i++) {
             entry.block[i + shift] = mem_area[i];
             bytes_read++;
             entry.current_position++;
             if (entry.current_position > file_size) {
                 file_size++;
             }
+            entry.modified = true;
         }
 
         // if whole block was processed and file hasn't reached its max size, do read-ahead
@@ -375,7 +374,7 @@ int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
             replaceBlock(entry, entry.current_position / IOSystem::BLOCK_SIZE);
         }
 
-        if (i == count) {
+        if (i == count || entry.current_position == MAX_FILE_SIZE) {
             entry.descriptor.setFileSize(file_size);
             break;
         }
@@ -423,7 +422,7 @@ std::vector<std::string> FileSystem::directory() {
     char* directory_entry_mem = new char[DirectoryEntry::SIZE];
     Descriptor descriptor;
     Descriptor descriptors[4];
-    int descriptor_block_index = 4;
+    int descriptor_block_index = 1;
 
     io_system.readBlock(descriptor_block_index, block);
     BlockParser::parseBlock(block, descriptors);
@@ -451,8 +450,8 @@ std::vector<std::string> FileSystem::directory() {
             if (!cached) {
                 // if descriptor doesn't belong to currently cached block
                 // (then it necessarily belongs to one of the next blocks)
-                if (descriptor_index / 4 != descriptor_block_index - 4) {
-                    descriptor_block_index = descriptor_index / 4 + 4;
+                if (descriptor_index / 4 != descriptor_block_index - 1) {
+                    descriptor_block_index = descriptor_index / 4 + 1;
                     io_system.readBlock(descriptor_block_index, block);
                     BlockParser::parseBlock(block, descriptors);
                     descriptor = descriptors[i];
@@ -488,7 +487,7 @@ void FileSystem::loadDescriptor(OFT::Entry &entry) {
     char *descriptors_block = new char[IOSystem::BLOCK_SIZE];
     int shift = (entry.descriptor_index % 4) * Descriptor::SIZE;
 
-    io_system.readBlock(entry.descriptor_index / 4 + 4, descriptors_block);
+    io_system.readBlock(entry.descriptor_index / 4 + 1, descriptors_block);
     entry.descriptor.parse(descriptors_block + shift);
 
     delete[] descriptors_block;
@@ -496,7 +495,7 @@ void FileSystem::loadDescriptor(OFT::Entry &entry) {
 
 void FileSystem::saveDescriptor(OFT::Entry const &entry) {
     char *block = new char[IOSystem::BLOCK_SIZE];
-    int block_index = entry.descriptor_index / 4 + 4;
+    int block_index = entry.descriptor_index / 4 + 1;
     int shift = (entry.descriptor_index % 4) * Descriptor::SIZE;
 
     io_system.readBlock(block_index, block);
@@ -572,7 +571,7 @@ void FileSystem::saveBlock(OFT::Entry const &entry) {
     }
 
     // save file block
-    int relative_block_index = entry.current_position / 64;
+    int relative_block_index = entry.current_position / IOSystem::BLOCK_SIZE;
     int absolute_block_index = entry.descriptor.getBlockIndex(relative_block_index);
     io_system.writeBlock(absolute_block_index, entry.block);
     // save cached descriptor
