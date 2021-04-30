@@ -7,7 +7,7 @@
 
 #include <fstream>
 #include "IOSystem.h"
-
+#include <iostream>
 
 namespace IOUtils {
 
@@ -18,7 +18,7 @@ namespace IOUtils {
         if (out.is_open()) {
             for (int i = 0; i < IOSystem::NUM_OF_BLOCKS; i++) {
                 ldisk.readBlock(i, block);
-                out << block << std::endl;
+                out.write(block, IOSystem::BLOCK_SIZE);
             }
         }
 
@@ -32,7 +32,7 @@ namespace IOUtils {
 
         if (in.is_open()) {
             for (int i = 0; i < IOSystem::NUM_OF_BLOCKS; i++) {
-                in.get(block, IOSystem::BLOCK_SIZE);
+                in.read(block, IOSystem::BLOCK_SIZE);
                 ldisk.writeBlock(i, block);
             }
         }

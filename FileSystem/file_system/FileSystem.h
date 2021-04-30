@@ -26,11 +26,13 @@ struct OFT{
 class FileSystem {
 public:
     static const int MAX_FILE_SIZE = IOSystem::BLOCK_SIZE * Descriptor::NUM_OF_BLOCKS;
+    static const int MAX_FILES_NUM = 10;
 
 private:
     OFT oft;
     IOSystem io_system;
     BitMap bitMap;
+    int files_num;
 
 public:
 	explicit FileSystem();
@@ -51,6 +53,7 @@ public:
 private:
     void initOFTEntry(OFT::Entry &entry, int descriptor_index);
     static void clearOFTEntry(OFT::Entry &entry);
+    int countFiles();
 
     void doClose(OFT::Entry &entry);
     int doRead(OFT::Entry &entry, char* mem_area, int count);

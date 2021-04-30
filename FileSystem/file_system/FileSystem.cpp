@@ -2,9 +2,9 @@
 #include "entities/DirectoryEntry.h"
 #include "utils/BlockParser.h"
 #include "../io_system/IOSystem.h"
+#include "../io_system/IOUtils.h"
 #include <stdexcept>
 #include <cstring>
-#include <io_system/IOUtils.h>
 
 
 FileSystem::FileSystem() {
@@ -35,6 +35,21 @@ void FileSystem::clearOFTEntry(OFT::Entry &entry) {
     entry.block = nullptr;
 }
 
+int FileSystem::countFiles() {
+    int count = 0;
+    DirectoryEntry directory_entry;
+    char *directory_entry_mem = new char[DirectoryEntry::SIZE];
+
+    doSeek(oft.entries[0], 0);
+    while (doRead(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE) == DirectoryEntry::SIZE) {
+        directory_entry.parse(directory_entry_mem);
+        if (!directory_entry.isFree()) {
+            count++;
+        }
+    }
+    return count;
+}
+
 bool FileSystem::init(const char *path) {
     closeAllFiles();
 
@@ -48,11 +63,12 @@ bool FileSystem::init(const char *path) {
         initOFTEntry(oft.entries[0], 0);
         // cache bitmap
         loadBitmap();
-
+        files_num = countFiles();
         return true;
     }
 
     // INITIALIZE
+    files_num = 0;
     bitMap.clear();
     // reserve service blocks
     for (int i = 0; i < 7; i++) {
@@ -76,6 +92,7 @@ bool FileSystem::init(const char *path) {
     io_system.writeBlock(1, descriptor_block);
     // open directory
     oft.entries[0].descriptor = descriptor;
+    oft.entries[0].descriptor_index = 0;
     oft.entries[0].current_position = 0;
     oft.entries[0].block = new char[IOSystem::BLOCK_SIZE];
     loadBlock(oft.entries[0], 0);
@@ -89,12 +106,19 @@ void FileSystem::save(const char *path) {
     IOUtils::save(io_system, path);
 }
 
-void FileSystem::createFile(const char* file_name) {
+void FileSystem::createFile(const char *file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
     // if file name is incorrect
-    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0'){
-        throw std::length_error("File name must contain up to 4 characters.");
+    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0') {
+        throw std::invalid_argument("File name must contain up to 4 characters.");
+    }
+
+    // if files limit is reached
+    if (files_num == MAX_FILES_NUM) {
+        char message[100];
+        std::sprintf(message, "Cannot create more than %d files.", files_num);
+        throw std::length_error(message);
     }
 
     // find a free file descriptor
@@ -106,7 +130,7 @@ void FileSystem::createFile(const char* file_name) {
         io_system.readBlock(block_index, descriptor_block);
         for (int i = 0; i < descriptors_num; i++) {
             descriptor.parse(descriptor_block + i * Descriptor::SIZE);
-            if (descriptor.isFree()){
+            if (descriptor.isFree()) {
                 free_descriptor_index = (block_index - 1) * descriptors_num + i;
                 descriptor.setFileSize(0);
                 break;
@@ -122,7 +146,7 @@ void FileSystem::createFile(const char* file_name) {
 
     // find a free directory entry
     int free_directory_entry_index = -1;
-    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     DirectoryEntry directory_entry, current;
     directory_entry.setFileName(file_name);
     directory_entry.setDescriptorIndex(free_descriptor_index);
@@ -172,13 +196,15 @@ void FileSystem::createFile(const char* file_name) {
     descriptor.copyBytes(descriptor_block + (free_descriptor_index % descriptors_num) * Descriptor::SIZE);
     io_system.writeBlock(free_descriptor_index / descriptors_num + 1, descriptor_block);
     delete[] descriptor_block;
+
+    files_num++;
 }
 
-void FileSystem::destroyFile(const char* file_name) {
+void FileSystem::destroyFile(const char *file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
     // if file name is incorrect
-    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0'){
+    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0') {
         throw std::length_error("File name must contain up to 4 characters.");
     }
 
@@ -186,7 +212,7 @@ void FileSystem::destroyFile(const char* file_name) {
     // find the directory entry
     bool found = false;
     int descriptor_index = -1;
-    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     DirectoryEntry directory_entry;
     int i = 0;
 
@@ -239,7 +265,7 @@ void FileSystem::destroyFile(const char* file_name) {
         io_system.writeBlock(descriptor_index / descriptors_num + 1, descriptor_block);
         delete[] descriptor_block;
     } else {
-        OFT::Entry* entry = &oft.entries[oft_index];
+        OFT::Entry *entry = &oft.entries[oft_index];
         descriptor = entry->descriptor;
         entry->descriptor.clear();
         // save clean descriptor on disk
@@ -253,11 +279,13 @@ void FileSystem::destroyFile(const char* file_name) {
     }
     // save changes to disk (write-through caching)
     saveBitmap();
+
+    files_num--;
 }
 
 int FileSystem::open(const char *file_name) {
     int descriptor_index = -1;
-    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     DirectoryEntry directory_entry;
 
     doSeek(oft.entries[0], 0);
@@ -314,7 +342,7 @@ int FileSystem::read(int index, char *mem_area, int count) {
     return doRead(oft.entries[index], mem_area, count);
 }
 
-int FileSystem::doRead(OFT::Entry &entry, char* mem_area, int count) {
+int FileSystem::doRead(OFT::Entry &entry, char *mem_area, int count) {
     int file_size = entry.descriptor.getFileSize();
     int bytes_read = 0;
     int shift = entry.current_position % IOSystem::BLOCK_SIZE;
@@ -348,7 +376,7 @@ int FileSystem::write(int index, const char *mem_area, int count) {
     return doWrite(oft.entries[index], mem_area, count);
 }
 
-int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
+int FileSystem::doWrite(OFT::Entry &entry, const char *mem_area, int count) {
     int file_size = entry.descriptor.getFileSize();
     int bytes_written = 0;
     int shift = entry.current_position % IOSystem::BLOCK_SIZE;
@@ -393,7 +421,7 @@ int FileSystem::doWrite(OFT::Entry &entry, const char* mem_area, int count) {
 
 void FileSystem::lseek(int index, int pos) {
     checkOFTIndex(index);
-    OFT::Entry* entry = &oft.entries[index];
+    OFT::Entry *entry = &oft.entries[index];
 
     if (pos > entry->descriptor.getFileSize()) {
         char message[100];
@@ -425,7 +453,7 @@ std::vector<std::string> FileSystem::directory() {
     char *block = new char[IOSystem::BLOCK_SIZE];
 
     DirectoryEntry directory_entry;
-    char* directory_entry_mem = new char[DirectoryEntry::SIZE];
+    char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     Descriptor descriptor;
     Descriptor descriptors[4];
     int descriptor_block_index = 1;
@@ -442,7 +470,7 @@ std::vector<std::string> FileSystem::directory() {
             char file_name[DirectoryEntry::MAX_FILE_NAME_SIZE + 1];
             directory_entry.copyFileName(file_name);
             int descriptor_index = directory_entry.getDescriptorIndex();
-            int i = descriptor_index % 4;
+
             bool cached = false;
 
             for (int j = 1; j < 4; j++) {
@@ -460,8 +488,8 @@ std::vector<std::string> FileSystem::directory() {
                     descriptor_block_index = descriptor_index / 4 + 1;
                     io_system.readBlock(descriptor_block_index, block);
                     BlockParser::parseBlock(block, descriptors);
-                    descriptor = descriptors[i];
                 }
+                descriptor = descriptors[descriptor_index % 4];
             }
 
             std::string file_name_str(file_name);
