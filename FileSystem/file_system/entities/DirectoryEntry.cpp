@@ -5,6 +5,7 @@
 DirectoryEntry::DirectoryEntry() {
     file_name = new char[MAX_FILE_NAME_SIZE + 1];
     file_name[0] = '\0';
+    file_name[MAX_FILE_NAME_SIZE] = '\0';
     descriptor_index = -1;
 }
 
