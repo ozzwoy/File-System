@@ -10,6 +10,7 @@
 #include "entities/DirectoryEntry.h"
 
 struct OFT{
+    static const int CAPACITY = 4;
 
     struct Entry{
         int descriptor_index = -1;
@@ -20,13 +21,18 @@ struct OFT{
         Descriptor descriptor;
     };
 
-    Entry entries[4];
+    Entry entries[CAPACITY];
 };
 
 class FileSystem {
 public:
     static const int MAX_FILE_SIZE = IOSystem::BLOCK_SIZE * Descriptor::NUM_OF_BLOCKS;
     static const int MAX_FILES_NUM = 10;
+    static const int MAX_FILES_OPENED = OFT::CAPACITY;
+    static const int DESCRIPTORS_IN_BLOCK = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
+    static const int DIRECTORY_ENTRIES_IN_BLOCK = IOSystem::BLOCK_SIZE / DirectoryEntry::SIZE;
+    static const int DESCRIPTORS_BLOCKS_NUM = (MAX_FILES_NUM + 1) / DESCRIPTORS_IN_BLOCK +
+                                              ((MAX_FILES_NUM + 1) % DESCRIPTORS_IN_BLOCK == 0 ? 0 : 1);
 
 private:
     OFT oft;
@@ -52,13 +58,15 @@ public:
 
 private:
     void initOFTEntry(OFT::Entry &entry, int descriptor_index);
-    static void clearOFTEntry(OFT::Entry &entry);
+    void clearOFTEntry(OFT::Entry &entry);
     int countFiles();
 
     void doClose(OFT::Entry &entry);
     int doRead(OFT::Entry &entry, char* mem_area, int count);
     int doWrite(OFT::Entry &entry, const char* mem_area, int count);
     void doSeek(OFT::Entry &entry, int pos);
+
+    void checkFileName(const char* file_name);
     void checkOFTIndex(int index) const;
 
     void loadDescriptor(OFT::Entry &entry);

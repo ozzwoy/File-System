@@ -109,10 +109,7 @@ void FileSystem::save(const char *path) {
 void FileSystem::createFile(const char *file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
-    // if file name is incorrect
-    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0') {
-        throw std::invalid_argument("File name must contain up to 4 characters.");
-    }
+    checkFileName(file_name);
 
     // if files limit is reached
     if (files_num == MAX_FILES_NUM) {
@@ -136,12 +133,6 @@ void FileSystem::createFile(const char *file_name) {
                 break;
             }
         }
-    }
-
-    // if there is no free file descriptor
-    if (free_descriptor_index == -1) {
-        delete[] descriptor_block;
-        throw std::length_error("Cannot create more than 23 files.");
     }
 
     // find a free directory entry
@@ -175,15 +166,9 @@ void FileSystem::createFile(const char *file_name) {
     }
 
     if (free_directory_entry_index == -1) {
-        // all entries in a directory file are busy
-        if (oft.entries[0].current_position == MAX_FILE_SIZE) {
-            delete[] directory_entry_mem;
-            delete[] descriptor_block;
-            throw std::length_error("Cannot create more than 23 files.");
-        } else {
-            directory_entry.copyBytes(directory_entry_mem);
-            doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
-        }
+        // no spare place in directory file, expand
+        directory_entry.copyBytes(directory_entry_mem);
+        doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
     } else {
         // write directory entry to spare place
         directory_entry.copyBytes(directory_entry_mem);
@@ -203,10 +188,7 @@ void FileSystem::createFile(const char *file_name) {
 void FileSystem::destroyFile(const char *file_name) {
     const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
-    // if file name is incorrect
-    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE || file_name[0] == '\0') {
-        throw std::length_error("File name must contain up to 4 characters.");
-    }
+    checkFileName(file_name);
 
     // find the file descriptor by searching the directory
     // find the directory entry
@@ -249,14 +231,14 @@ void FileSystem::destroyFile(const char *file_name) {
     }
 
     int oft_index = 1;
-    while (oft.entries[oft_index].descriptor_index != descriptor_index && oft_index < 4) {
+    while (oft.entries[oft_index].descriptor_index != descriptor_index && oft_index < MAX_FILES_OPENED) {
         oft_index++;
     }
 
     Descriptor descriptor;
 
     // if file wasn't opened
-    if (oft_index == 4) {
+    if (oft_index == MAX_FILES_OPENED) {
         char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
         io_system.readBlock(descriptor_index / descriptors_num + 1, descriptor_block);
 
@@ -284,6 +266,8 @@ void FileSystem::destroyFile(const char *file_name) {
 }
 
 int FileSystem::open(const char *file_name) {
+    checkFileName(file_name);
+
     int descriptor_index = -1;
     char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     DirectoryEntry directory_entry;
@@ -305,22 +289,30 @@ int FileSystem::open(const char *file_name) {
 
     if (descriptor_index == -1) {
         char message[100];
-        std::sprintf(message, "File with name \"%s\" doesn't exist.", file_name);
+        std::sprintf(message, "File with name \"%s\" does not exist.", file_name);
         throw std::invalid_argument(message);
     }
 
-    int oft_index = 1;
-    while (oft.entries[oft_index].descriptor_index != -1 && oft_index < 4) {
-        oft_index++;
+    int first_free_index = -1;
+
+    for (int oft_index = 1; oft_index < MAX_FILES_OPENED; oft_index++) {
+        // if the file is already opened
+        if (oft.entries[oft_index].descriptor_index == descriptor_index) {
+            return oft_index;
+        }
+        // remember the index of free place for file
+        if (first_free_index == -1 && oft.entries[oft_index].descriptor_index == -1) {
+            first_free_index = oft_index;
+        }
     }
 
-    if (oft_index == 4) {
+    if (first_free_index == -1) {
         throw std::length_error("Can't open one more file.");
     } else {
-        initOFTEntry(oft.entries[oft_index], descriptor_index);
+        initOFTEntry(oft.entries[first_free_index], descriptor_index);
     }
 
-    return oft_index;
+    return first_free_index;
 }
 
 void FileSystem::close(int index) {
@@ -473,7 +465,7 @@ std::vector<std::string> FileSystem::directory() {
 
             bool cached = false;
 
-            for (int j = 1; j < 4; j++) {
+            for (int j = 1; j < MAX_FILES_OPENED; j++) {
                 if (oft.entries[j].descriptor_index == descriptor_index) {
                     descriptor = oft.entries[j].descriptor;
                     cached = true;
@@ -505,10 +497,21 @@ std::vector<std::string> FileSystem::directory() {
 }
 
 
-void FileSystem::checkOFTIndex(int index) const {
-    if (index < 1 || index > 3) {
+void FileSystem::checkFileName(const char* file_name) {
+    if (strlen(file_name) > DirectoryEntry::MAX_FILE_NAME_SIZE) {
         char message[100];
-        std::sprintf(message, "Invalid index. File index must be an integer from 1 to 3. Provided: %d.", index);
+        std::sprintf(message, "File name must contain up to %d characters.", DirectoryEntry::MAX_FILE_NAME_SIZE);
+        throw std::invalid_argument(message);
+    } else if (std::strcmp(file_name, "") == 0) {
+        throw std::invalid_argument("File name must contain at least 1 character.");
+    }
+}
+
+void FileSystem::checkOFTIndex(int index) const {
+    if (index < 1 || index >= MAX_FILES_OPENED) {
+        char message[100];
+        std::sprintf(message, "Invalid index. File index must be an integer from 1 to %d. Provided: %d.",
+                     MAX_FILES_OPENED - 1, index);
         throw std::out_of_range(message);
     } else if (oft.entries[index].descriptor_index == -1) {
         char message[100];
@@ -516,6 +519,7 @@ void FileSystem::checkOFTIndex(int index) const {
         throw std::invalid_argument(message);
     }
 }
+
 
 void FileSystem::loadDescriptor(OFT::Entry &entry) {
     char *descriptors_block = new char[IOSystem::BLOCK_SIZE];

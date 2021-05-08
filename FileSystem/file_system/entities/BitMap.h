@@ -6,7 +6,7 @@
 
 class BitMap : public Entity {
 public:
-    static const int BITMAP_SIZE = 8;
+    static const int SIZE = 8;
 
 private:
     int* bitmap;

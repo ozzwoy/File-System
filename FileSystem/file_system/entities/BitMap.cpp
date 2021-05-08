@@ -2,7 +2,7 @@
 #include <algorithm>
 
 BitMap::BitMap() {
-    bitmap = new int[BITMAP_SIZE];
+    bitmap = new int[SIZE];
 }
 
 BitMap::~BitMap() {
@@ -10,13 +10,13 @@ BitMap::~BitMap() {
 }
 
 BitMap::BitMap(BitMap const &other) {
-    bitmap = new int[BITMAP_SIZE];
+    bitmap = new int[SIZE];
 }
 
 BitMap& BitMap::operator=(BitMap const &other) {
     if (this != &other) {
-        bitmap = new int[BITMAP_SIZE];
-        std::copy(other.bitmap, other.bitmap + BITMAP_SIZE, bitmap);
+        bitmap = new int[SIZE];
+        std::copy(other.bitmap, other.bitmap + SIZE, bitmap);
     }
     return *this;
 }
@@ -47,7 +47,7 @@ void BitMap::copyBytes(char *buffer) const {
 }
 
 void BitMap::clear() {
-    std::fill(bitmap, bitmap + BITMAP_SIZE, 0);
+    std::fill(bitmap, bitmap + SIZE, 0);
 }
 
 bool BitMap::isBitSet(size_t bit) const{
