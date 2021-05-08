@@ -7,8 +7,9 @@
 class Descriptor : public Entity {
 public:
     static const int NUM_OF_BLOCKS = 3;
-    static const int SIZE = 16;
-
+    static const int FILE_SIZE_TYPE_SIZE = sizeof(int);
+    static const int BLOCK_INDEX_SIZE = sizeof(int);
+    static const int SIZE = FILE_SIZE_TYPE_SIZE + BLOCK_INDEX_SIZE * NUM_OF_BLOCKS;
 private:
     int file_size;
     int *blocks_indices;

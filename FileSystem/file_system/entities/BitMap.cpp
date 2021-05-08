@@ -1,6 +1,5 @@
 #include "BitMap.h"
 #include <algorithm>
-
 BitMap::BitMap() {
     bitmap = new int[SIZE];
 }
@@ -35,7 +34,7 @@ BitMap& BitMap::operator=(BitMap &&other) noexcept {
 }
 
 void BitMap::parse(const char *bytes) {
-    for (size_t i = 0; i < 8; i++) {
+    for (size_t i = 0; i < SIZE; i++) {
         bitmap[i] = (int) (unsigned char) bytes[i];
     }
 }
@@ -67,7 +66,7 @@ void BitMap::resetBit(size_t bit) {
 }
 
 int BitMap::findZeroBit() const {
-    for (size_t i = 0; i < 64; i++) {
+    for (size_t i = 0; i < SIZE * 8; i++) {
         if (!isBitSet(i)) return i;
     }
     return -1;

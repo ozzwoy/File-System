@@ -78,13 +78,13 @@ TEST_CASE("File System") {
     }
 
     SUBCASE("Create") {
-        for (int i = 0; i < FileSystem::MAX_FILES_NUM - 1; i++) {
+        for (int i = 0; i < FileSystem::MAX_NUM_OF_FILES - 1; i++) {
             fs.createFile(std::to_string(i).c_str());
         }
         REQUIRE_THROWS_WITH(fs.createFile("0"), "File with name \"0\" already exists.");
 
-        fs.createFile(std::to_string(FileSystem::MAX_FILES_NUM - 1).c_str());
-        REQUIRE_THROWS_AS(fs.createFile(std::to_string(FileSystem::MAX_FILES_NUM).c_str()), std::length_error);
+        fs.createFile(std::to_string(FileSystem::MAX_NUM_OF_FILES - 1).c_str());
+        REQUIRE_THROWS_AS(fs.createFile(std::to_string(FileSystem::MAX_NUM_OF_FILES).c_str()), std::length_error);
     }
 
     SUBCASE("Destroy"){

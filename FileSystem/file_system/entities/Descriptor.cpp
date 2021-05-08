@@ -42,22 +42,23 @@ Descriptor& Descriptor::operator=(Descriptor &&other) noexcept {
 }
 
 void Descriptor::parse(const char *bytes) {
-    file_size = Utils::bytesToInt32(bytes);
+    file_size = Utils::bytesToInt(bytes);
     for (int i = 0; i < NUM_OF_BLOCKS; i++) {
-        blocks_indices[i] = Utils::bytesToInt32(bytes + 4 * (i + 1));
+        blocks_indices[i] = Utils::bytesToInt(bytes + FILE_SIZE_TYPE_SIZE + BLOCK_INDEX_SIZE * i);
     }
 }
 
 void Descriptor::copyBytes(char *buffer) const {
     char *file_size_bytes = new char[sizeof(int)];
     Utils::intToBytes(file_size, file_size_bytes);
-    std::copy(file_size_bytes, file_size_bytes + 4, buffer);
+    std::copy(file_size_bytes, file_size_bytes + FILE_SIZE_TYPE_SIZE, buffer);
     delete[] file_size_bytes;
 
     char *index_bytes = new char[sizeof(int)];
     for (int i = 0; i < NUM_OF_BLOCKS; i++) {
         Utils::intToBytes(blocks_indices[i], index_bytes);
-        std::copy(index_bytes, index_bytes + 4, buffer + 4 * (i + 1));
+        std::copy(index_bytes, index_bytes + BLOCK_INDEX_SIZE,
+                  buffer + + FILE_SIZE_TYPE_SIZE + BLOCK_INDEX_SIZE * i);
     }
     delete[] index_bytes;
 }

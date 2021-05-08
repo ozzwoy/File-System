@@ -44,7 +44,7 @@ DirectoryEntry& DirectoryEntry::operator=(DirectoryEntry &&other) noexcept {
 
 void DirectoryEntry::parse(const char *bytes) {
     std::copy(bytes, bytes + MAX_FILE_NAME_SIZE, file_name);
-    descriptor_index = Utils::bytesToInt32(bytes + 4);
+    descriptor_index = Utils::bytesToInt(bytes + MAX_FILE_NAME_SIZE);
 }
 
 void DirectoryEntry::copyBytes(char *buffer) const {
@@ -52,7 +52,7 @@ void DirectoryEntry::copyBytes(char *buffer) const {
 
     char *descriptor_index_bytes = new char[sizeof(int)];
     Utils::intToBytes(descriptor_index, descriptor_index_bytes);
-    std::copy(descriptor_index_bytes, descriptor_index_bytes + 4, buffer + 4);
+    std::copy(descriptor_index_bytes, descriptor_index_bytes + MAX_FILE_NAME_SIZE, buffer + MAX_FILE_NAME_SIZE);
     delete[] descriptor_index_bytes;
 }
 
