@@ -27,15 +27,15 @@ struct OFT{
 class FileSystem {
 public:
     static const int MAX_FILE_SIZE = IOSystem::BLOCK_SIZE * Descriptor::NUM_OF_BLOCKS;
-    static const int MAX_FILES_NUM = 10;
+    static const int MAX_NUM_OF_FILES = 10;
     static const int MAX_FILES_OPENED = OFT::CAPACITY;
+    static const int MAX_FILE_NAME_SIZE = DirectoryEntry::MAX_FILE_NAME_SIZE;
 
 private:
     static const int DESCRIPTORS_IN_BLOCK = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
-    static const int DIRECTORY_ENTRIES_IN_BLOCK = IOSystem::BLOCK_SIZE / DirectoryEntry::SIZE;
-    static const int BITMAP_BLOCKS_NUM = 1;
-    static const int DESCRIPTORS_BLOCKS_NUM = (MAX_FILES_NUM + 1) / DESCRIPTORS_IN_BLOCK +
-                                              ((MAX_FILES_NUM + 1) % DESCRIPTORS_IN_BLOCK == 0 ? 0 : 1);
+    static const int NUM_OF_BITMAP_BLOCKS = 1;
+    static const int NUM_OF_DESCRIPTORS_BLOCKS = MAX_NUM_OF_FILES / DESCRIPTORS_IN_BLOCK +
+                                                 (MAX_NUM_OF_FILES % DESCRIPTORS_IN_BLOCK == 0 ? 0 : 1);
 
     OFT oft;
     IOSystem io_system;

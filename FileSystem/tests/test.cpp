@@ -67,7 +67,7 @@ TEST_CASE("File System") {
 
     SUBCASE("File name") {
         std::string name;
-        for (int i = 0; i <= DirectoryEntry::MAX_FILE_NAME_SIZE; i++) {
+        for (int i = 0; i <= FileSystem::MAX_FILE_NAME_SIZE; i++) {
             name.push_back('a');
         }
         CHECK_THROWS_AS(fs.createFile(name.c_str()), std::invalid_argument);
@@ -78,13 +78,13 @@ TEST_CASE("File System") {
     }
 
     SUBCASE("Create") {
-        for (int i = 0; i < FileSystem::MAX_FILES_NUM - 1; i++) {
+        for (int i = 0; i < FileSystem::MAX_NUM_OF_FILES - 1; i++) {
             fs.createFile(std::to_string(i).c_str());
         }
         REQUIRE_THROWS_WITH(fs.createFile("0"), "File with name \"0\" already exists.");
 
-        fs.createFile(std::to_string(FileSystem::MAX_FILES_NUM - 1).c_str());
-        REQUIRE_THROWS_AS(fs.createFile(std::to_string(FileSystem::MAX_FILES_NUM).c_str()), std::length_error);
+        fs.createFile(std::to_string(FileSystem::MAX_NUM_OF_FILES - 1).c_str());
+        REQUIRE_THROWS_AS(fs.createFile(std::to_string(FileSystem::MAX_NUM_OF_FILES).c_str()), std::length_error);
     }
 
     SUBCASE("Destroy"){
@@ -171,6 +171,8 @@ TEST_CASE("File System") {
         char buffer3[FileSystem::MAX_FILE_SIZE + 10];
         fs.lseek(index, 0);
         REQUIRE(fs.write(index, buffer3, FileSystem::MAX_FILE_SIZE + 10) == FileSystem::MAX_FILE_SIZE);
+        fs.lseek(index, 0);
+        REQUIRE(fs.read(index, buffer3, FileSystem::MAX_FILE_SIZE + 10) == FileSystem::MAX_FILE_SIZE);
     }
 
     SUBCASE("Directory") {

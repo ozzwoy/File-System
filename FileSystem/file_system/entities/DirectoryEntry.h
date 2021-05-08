@@ -7,7 +7,8 @@
 class DirectoryEntry : public Entity {
 public:
     static const int MAX_FILE_NAME_SIZE = 4;
-    static const int SIZE = 8;
+    static const int DESCRIPTOR_INDEX_SIZE = sizeof(int);
+    static const int SIZE = MAX_FILE_NAME_SIZE + DESCRIPTOR_INDEX_SIZE;
 
 private:
     char *file_name;

@@ -1,6 +1,5 @@
 #include "FileSystem.h"
 #include "entities/DirectoryEntry.h"
-#include "utils/BlockParser.h"
 #include "../io_system/IOSystem.h"
 #include "../io_system/IOUtils.h"
 #include <stdexcept>
@@ -71,7 +70,7 @@ bool FileSystem::init(const char *path) {
     files_num = 0;
     bitMap.clear();
     // reserve service blocks
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < NUM_OF_BITMAP_BLOCKS + NUM_OF_DESCRIPTORS_BLOCKS; i++) {
         bitMap.setBitValue(i, true);
     }
     saveBitmap();
@@ -79,17 +78,20 @@ bool FileSystem::init(const char *path) {
     // reset all descriptors in service blocks
     char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
     Descriptor descriptor;
-    for (int descriptorIndexInBlock = 0; descriptorIndexInBlock < 4; descriptorIndexInBlock++) {
+    int directory_descriptor_block_num = NUM_OF_BITMAP_BLOCKS;
+
+    for (int descriptorIndexInBlock = 0; descriptorIndexInBlock < DESCRIPTORS_IN_BLOCK; descriptorIndexInBlock++) {
         descriptor.copyBytes(descriptor_block + descriptorIndexInBlock * Descriptor::SIZE);
     }
-    for (int descriptorsBlocksIndex = 2; descriptorsBlocksIndex < 7; descriptorsBlocksIndex++) {
+    for (int descriptorsBlocksIndex = directory_descriptor_block_num + 1; descriptorsBlocksIndex < NUM_OF_BITMAP_BLOCKS + NUM_OF_DESCRIPTORS_BLOCKS;descriptorsBlocksIndex++) {
         io_system.writeBlock(descriptorsBlocksIndex, descriptor_block);
     }
 
     // separately reset directory descriptor
     descriptor.setFileSize(0);
     descriptor.copyBytes(descriptor_block);
-    io_system.writeBlock(1, descriptor_block);
+
+    io_system.writeBlock(directory_descriptor_block_num, descriptor_block);
     // open directory
     oft.entries[0].descriptor = descriptor;
     oft.entries[0].descriptor_index = 0;
@@ -107,12 +109,11 @@ void FileSystem::save(const char *path) {
 }
 
 void FileSystem::createFile(const char *file_name) {
-    const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
     checkFileName(file_name);
 
     // if files limit is reached
-    if (files_num == MAX_FILES_NUM) {
+    if (files_num == MAX_NUM_OF_FILES) {
         char message[100];
         std::sprintf(message, "Cannot create more than %d files.", files_num);
         throw std::length_error(message);
@@ -123,12 +124,12 @@ void FileSystem::createFile(const char *file_name) {
     char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
     Descriptor descriptor;
 
-    for (int block_index = 1; block_index < 7 && free_descriptor_index == -1; block_index++) {
+    for (int block_index = 1; block_index < NUM_OF_BITMAP_BLOCKS + NUM_OF_DESCRIPTORS_BLOCKS && free_descriptor_index == -1; block_index++) {
         io_system.readBlock(block_index, descriptor_block);
-        for (int i = 0; i < descriptors_num; i++) {
+        for (int i = 0; i < DESCRIPTORS_IN_BLOCK; i++) {
             descriptor.parse(descriptor_block + i * Descriptor::SIZE);
             if (descriptor.isFree()) {
-                free_descriptor_index = (block_index - 1) * descriptors_num + i;
+                free_descriptor_index = (block_index - 1) *  DESCRIPTORS_IN_BLOCK + i;
                 descriptor.setFileSize(0);
                 break;
             }
@@ -178,15 +179,14 @@ void FileSystem::createFile(const char *file_name) {
     delete[] directory_entry_mem;
 
     // fill descriptor
-    descriptor.copyBytes(descriptor_block + (free_descriptor_index % descriptors_num) * Descriptor::SIZE);
-    io_system.writeBlock(free_descriptor_index / descriptors_num + 1, descriptor_block);
+    descriptor.copyBytes(descriptor_block + (free_descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
+    io_system.writeBlock(free_descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptor_block);
     delete[] descriptor_block;
 
     files_num++;
 }
 
 void FileSystem::destroyFile(const char *file_name) {
-    const int descriptors_num = IOSystem::BLOCK_SIZE / Descriptor::SIZE;
 
     checkFileName(file_name);
 
@@ -240,11 +240,11 @@ void FileSystem::destroyFile(const char *file_name) {
     // if file wasn't opened
     if (oft_index == MAX_FILES_OPENED) {
         char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
-        io_system.readBlock(descriptor_index / descriptors_num + 1, descriptor_block);
+        io_system.readBlock(descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptor_block);
 
         // free the file descriptor
-        descriptor.copyBytes(descriptor_block + (descriptor_index % descriptors_num) * Descriptor::SIZE);
-        io_system.writeBlock(descriptor_index / descriptors_num + 1, descriptor_block);
+        descriptor.copyBytes(descriptor_block + (descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
+        io_system.writeBlock(descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptor_block);
         delete[] descriptor_block;
     } else {
         OFT::Entry *entry = &oft.entries[oft_index];
@@ -432,6 +432,10 @@ void FileSystem::doSeek(OFT::Entry &entry, int pos) {
     // if we are at the end of file, then we are on the last possible block
     if (current_block_oft_index == Descriptor::NUM_OF_BLOCKS) {
         current_block_oft_index--;
+        entry.current_position--;
+    }
+    if (new_block_oft_index == Descriptor::NUM_OF_BLOCKS) {
+        new_block_oft_index--;
     }
     if (new_block_oft_index != current_block_oft_index) {
         replaceBlock(entry, new_block_oft_index);
@@ -447,11 +451,7 @@ std::vector<std::string> FileSystem::directory() {
     DirectoryEntry directory_entry;
     char *directory_entry_mem = new char[DirectoryEntry::SIZE];
     Descriptor descriptor;
-    Descriptor descriptors[4];
-    int descriptor_block_index = 1;
-
-    io_system.readBlock(descriptor_block_index, block);
-    BlockParser::parseBlock(block, descriptors);
+    int descriptor_block_index = -1;
 
     doSeek(oft.entries[0], 0);
 
@@ -476,12 +476,11 @@ std::vector<std::string> FileSystem::directory() {
             if (!cached) {
                 // if descriptor doesn't belong to currently cached block
                 // (then it necessarily belongs to one of the next blocks)
-                if (descriptor_index / 4 != descriptor_block_index - 1) {
-                    descriptor_block_index = descriptor_index / 4 + 1;
+                if (descriptor_block_index != descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS) {
+                    descriptor_block_index = descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS;
                     io_system.readBlock(descriptor_block_index, block);
-                    BlockParser::parseBlock(block, descriptors);
                 }
-                descriptor = descriptors[descriptor_index % 4];
+                descriptor.parse(block + (descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
             }
 
             std::string file_name_str(file_name);
@@ -523,9 +522,9 @@ void FileSystem::checkOFTIndex(int index) const {
 
 void FileSystem::loadDescriptor(OFT::Entry &entry) {
     char *descriptors_block = new char[IOSystem::BLOCK_SIZE];
-    int shift = (entry.descriptor_index % 4) * Descriptor::SIZE;
+    int shift = (entry.descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE;
 
-    io_system.readBlock(entry.descriptor_index / 4 + 1, descriptors_block);
+    io_system.readBlock(entry.descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptors_block);
     entry.descriptor.parse(descriptors_block + shift);
 
     delete[] descriptors_block;
@@ -533,8 +532,8 @@ void FileSystem::loadDescriptor(OFT::Entry &entry) {
 
 void FileSystem::saveDescriptor(OFT::Entry const &entry) {
     char *block = new char[IOSystem::BLOCK_SIZE];
-    int block_index = entry.descriptor_index / 4 + 1;
-    int shift = (entry.descriptor_index % 4) * Descriptor::SIZE;
+    int block_index = entry.descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS;
+    int shift = (entry.descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE;
 
     io_system.readBlock(block_index, block);
     entry.descriptor.copyBytes(block + shift);

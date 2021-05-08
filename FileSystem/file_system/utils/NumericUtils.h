@@ -10,10 +10,10 @@ namespace Utils {
         }
     }
 
-    inline int bytesToInt32(const char* bytes) {
+    inline int bytesToInt(const char* bytes) {
         int number = 0;
 
-        for (size_t i = 0; i < 4; i++) {
+        for (size_t i = 0; i < sizeof(int); i++) {
             ((unsigned char*)(&number))[i] = ((unsigned char*)bytes)[i];
         }
 
