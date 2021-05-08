@@ -29,6 +29,7 @@ public:
     static const int MAX_FILE_SIZE = IOSystem::BLOCK_SIZE * Descriptor::NUM_OF_BLOCKS;
     static const int MAX_NUM_OF_FILES = 10;
     static const int MAX_FILES_OPENED = OFT::CAPACITY;
+    static const int MAX_FILE_NAME_SIZE = DirectoryEntry::MAX_FILE_NAME_SIZE;
 
 private:
     static const int DESCRIPTORS_IN_BLOCK = IOSystem::BLOCK_SIZE / Descriptor::SIZE;

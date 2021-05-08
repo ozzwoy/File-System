@@ -67,7 +67,7 @@ TEST_CASE("File System") {
 
     SUBCASE("File name") {
         std::string name;
-        for (int i = 0; i <= DirectoryEntry::MAX_FILE_NAME_SIZE; i++) {
+        for (int i = 0; i <= FileSystem::MAX_FILE_NAME_SIZE; i++) {
             name.push_back('a');
         }
         CHECK_THROWS_AS(fs.createFile(name.c_str()), std::invalid_argument);
@@ -171,6 +171,8 @@ TEST_CASE("File System") {
         char buffer3[FileSystem::MAX_FILE_SIZE + 10];
         fs.lseek(index, 0);
         REQUIRE(fs.write(index, buffer3, FileSystem::MAX_FILE_SIZE + 10) == FileSystem::MAX_FILE_SIZE);
+        fs.lseek(index, 0);
+        REQUIRE(fs.read(index, buffer3, FileSystem::MAX_FILE_SIZE + 10) == FileSystem::MAX_FILE_SIZE);
     }
 
     SUBCASE("Directory") {
