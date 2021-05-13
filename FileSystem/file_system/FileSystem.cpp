@@ -22,7 +22,13 @@ void FileSystem::initOFTEntry(OFT::Entry &entry, int descriptor_index) {
     entry.current_position = 0;
     delete[] entry.block;
     entry.block = new char[IOSystem::BLOCK_SIZE];
-    loadBlock(entry, 0);
+
+    try {
+        loadBlock(entry, 0);
+    } catch (std::logic_error const &e) {
+        clearOFTEntry(entry);
+        throw e;
+    }
 }
 
 void FileSystem::clearOFTEntry(OFT::Entry &entry) {
@@ -100,6 +106,7 @@ bool FileSystem::init(const char *path) {
     loadBlock(oft.entries[0], 0);
 
     delete[] descriptor_block;
+
     return false;
 }
 
@@ -169,7 +176,13 @@ void FileSystem::createFile(const char *file_name) {
     if (free_directory_entry_index == -1) {
         // no spare place in directory file, expand
         directory_entry.copyBytes(directory_entry_mem);
-        doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
+        int bytes_written = doWrite(oft.entries[0], directory_entry_mem, DirectoryEntry::SIZE);
+
+        if (bytes_written < DirectoryEntry::SIZE) {
+            delete[] directory_entry_mem;
+            delete[] descriptor_block;
+            throw std::length_error("Cannot create one more file.");
+        }
     } else {
         // write directory entry to spare place
         directory_entry.copyBytes(directory_entry_mem);
@@ -322,6 +335,10 @@ void FileSystem::close(int index) {
 
 void FileSystem::doClose(OFT::Entry &entry) {
     if (entry.modified) {
+        // if we are at the end of file, then we are on the last possible block
+        if (entry.current_position / IOSystem::BLOCK_SIZE == Descriptor::NUM_OF_BLOCKS) {
+            entry.current_position--;
+        }
         saveBlock(entry);
     } else if (entry.reserved_block_index != -1) {
         freeReservation(entry);
@@ -376,16 +393,12 @@ int FileSystem::doWrite(OFT::Entry &entry, const char *mem_area, int count) {
 
     while (true) {
         // if current block is reserved, then use it and release reservation
-        if (shift == 0 && entry.current_position == file_size) {
+        if (entry.reserved_block_index != -1) {
             saveDescriptor(entry);
             entry.reserved_block_index = -1;
         }
-        // set modification bit if something is going to be written
-        if (count > 0) {
-            entry.modified = true;
-        }
 
-        for (; i + shift < IOSystem::BLOCK_SIZE && bytes_written < count; i++) {
+        for (; i + shift < IOSystem::BLOCK_SIZE && entry.current_position < MAX_FILE_SIZE && bytes_written < count; i++) {
             entry.block[i + shift] = mem_area[bytes_written];
             bytes_written++;
             entry.current_position++;
@@ -393,6 +406,7 @@ int FileSystem::doWrite(OFT::Entry &entry, const char *mem_area, int count) {
                 file_size = entry.current_position;
                 entry.descriptor.setFileSize(file_size);
             }
+            entry.modified = true;
         }
 
         // if whole block was processed and file hasn't reached its max size, do read-ahead

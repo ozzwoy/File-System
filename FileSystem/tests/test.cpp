@@ -40,7 +40,7 @@ TEST_CASE("Entities") {
         directoryEntry.setFileName("new");
         directoryEntry.setDescriptorIndex(7);
         directoryEntry.copyBytes(buffer);
-        REQUIRE(std::strcmp(buffer, "new\0\0\0\a") == 0);
+        REQUIRE(std::strcmp(buffer, "new\0\0\0\0\a") == 0);
     }
 
     SUBCASE("Descriptor") {

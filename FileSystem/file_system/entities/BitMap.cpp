@@ -66,7 +66,7 @@ void BitMap::resetBit(size_t bit) {
 }
 
 int BitMap::findZeroBit() const {
-    for (size_t i = 0; i < SIZE * 8; i++) {
+    for (int i = 0; i < SIZE * 8; i++) {
         if (!isBitSet(i)) return i;
     }
     return -1;
