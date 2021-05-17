@@ -116,7 +116,6 @@ void FileSystem::save(const char *path) {
 }
 
 void FileSystem::createFile(const char *file_name) {
-
     checkFileName(file_name);
 
     // if files limit is reached
@@ -200,7 +199,6 @@ void FileSystem::createFile(const char *file_name) {
 }
 
 void FileSystem::destroyFile(const char *file_name) {
-
     checkFileName(file_name);
 
     // find the file descriptor by searching the directory
@@ -254,9 +252,11 @@ void FileSystem::destroyFile(const char *file_name) {
     if (oft_index == MAX_FILES_OPENED) {
         char *descriptor_block = new char[IOSystem::BLOCK_SIZE];
         io_system.readBlock(descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptor_block);
+        descriptor.parse(descriptor_block + (descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
 
         // free the file descriptor
-        descriptor.copyBytes(descriptor_block + (descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
+        Descriptor empty_descriptor;
+        empty_descriptor.copyBytes(descriptor_block + (descriptor_index % DESCRIPTORS_IN_BLOCK) * Descriptor::SIZE);
         io_system.writeBlock(descriptor_index / DESCRIPTORS_IN_BLOCK + NUM_OF_BITMAP_BLOCKS, descriptor_block);
         delete[] descriptor_block;
     } else {
@@ -607,11 +607,12 @@ void FileSystem::loadBlock(OFT::Entry &entry, int relative_block_index) {
 
     if (absolute_block_index == -1) {
         // read-ahead with block reservation
-        absolute_block_index = reserveBlock(entry);
+        reserveBlock(entry);
         entry.reserved_block_index = relative_block_index;
+    } else {
+        io_system.readBlock(absolute_block_index, entry.block);
     }
 
-    io_system.readBlock(absolute_block_index, entry.block);
     // set position at the beginning of the block
     entry.current_position = IOSystem::BLOCK_SIZE * relative_block_index;
 }
